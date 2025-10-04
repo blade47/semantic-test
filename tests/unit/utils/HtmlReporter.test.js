@@ -116,7 +116,7 @@ describe('HtmlReporter', () => {
       const html = reporter.buildHeader(metrics);
 
       assert.ok(typeof html === 'string');
-      assert.ok(html.includes('FlowTest Evaluation Report'));
+      assert.ok(html.includes('SemanticTest Evaluation Report'));
       assert.ok(html.includes('Duration: 100s'));
     });
 
@@ -139,7 +139,7 @@ describe('HtmlReporter', () => {
 
       assert.ok(typeof html === 'string');
       assert.ok(html.includes('<!DOCTYPE html>'));
-      assert.ok(html.includes('FlowTest Evaluation Report'));
+      assert.ok(html.includes('SemanticTest Evaluation Report'));
       assert.ok(html.includes('Test Suite'));
       assert.ok(html.includes('<script>'));
       assert.ok(html.includes('<style>'));
@@ -167,7 +167,7 @@ describe('HtmlReporter', () => {
 
       assert.ok(html);
       assert.ok(html.includes('<!DOCTYPE html>'));
-      assert.ok(html.includes('FlowTest Evaluation Report'));
+      assert.ok(html.includes('SemanticTest Evaluation Report'));
       assert.ok(html.includes('Test Suite'));
 
       // The generateReport method would write this to a file,

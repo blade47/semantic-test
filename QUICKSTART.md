@@ -5,7 +5,7 @@ Get up and running in 5 minutes.
 ## Install
 
 ```bash
-npm install semantic-test
+npm install @blade47/semantic-test
 ```
 
 ## Your First Test
@@ -287,7 +287,7 @@ Requires `OPENAI_API_KEY` in `.env`:
 
 ```javascript
 // blocks/custom/MyBlock.js
-import { Block } from 'semantic-test';
+import { Block } from '@blade47/semantic-test';
 
 export class MyBlock extends Block {
   static get inputs() {
@@ -318,9 +318,9 @@ Register it:
 
 ```javascript
 // test-runner.js
-import { blockRegistry } from 'semantic-test';
+import { blockRegistry } from '@blade47/semantic-test';
 import { MyBlock } from './blocks/custom/MyBlock.js';
-import { PipelineBuilder } from 'semantic-test';
+import { PipelineBuilder } from '@blade47/semantic-test';
 import fs from 'fs/promises';
 
 // Register custom block

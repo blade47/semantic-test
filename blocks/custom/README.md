@@ -46,7 +46,7 @@ export class MyCustomBlock extends Block {
 
 ```javascript
 // In your test setup file
-import { blockRegistry } from 'semantic-test';
+import { blockRegistry } from '@blade47/semantic-test';
 import { MyCustomBlock } from './blocks/custom/MyCustomBlock.js';
 
 blockRegistry.register('MyCustomBlock', MyCustomBlock);
@@ -74,4 +74,4 @@ blockRegistry.register('MyCustomBlock', MyCustomBlock);
 
 ## See Example
 
-Check `blocks/custom/examples/` for complete working examples.
+Check `blocks/examples/` for complete working examples.
