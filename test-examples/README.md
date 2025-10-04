@@ -1,6 +1,6 @@
 # Test Examples
 
-Example test suites demonstrating FlowTest capabilities. These are production-ready examples you can run and learn from.
+Example test suites demonstrating SemanticTest capabilities. These are production-ready examples you can run and learn from.
 
 ## Running Examples
 
@@ -11,7 +11,7 @@ All examples work out of the box (except those requiring API keys):
 node src/suite-runner.js test-examples/simple-api-test.json
 
 # Or use the CLI
-npx flowtest test-examples/simple-api-test.json
+npx semtest test-examples/simple-api-test.json
 ```
 
 ## Available Examples

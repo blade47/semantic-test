@@ -1,5 +1,5 @@
 /**
- * Constants for the FlowTest framework
+ * Constants for the SemanticTest framework
  * Following DRY principle - centralizing magic values
  */
 

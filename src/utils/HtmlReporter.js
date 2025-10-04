@@ -28,7 +28,7 @@ export class HtmlReporter {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlowTest Evaluation Report</title>
+    <title>SemanticTest Evaluation Report</title>
     <style>
         ${this.getStyles()}
     </style>
@@ -120,7 +120,7 @@ export class HtmlReporter {
     return `
       <header>
         <div class="header-content">
-          <h1>✓ FlowTest Evaluation Report</h1>
+          <h1>✓ SemanticTest Evaluation Report</h1>
           <div class="header-meta">
             Generated: ${dateStr} | Duration: ${metrics.totalDuration}s
           </div>
@@ -433,7 +433,7 @@ export class HtmlReporter {
     return `
       <footer>
         <div class="footer-content">
-          <p>FlowTest v1.0.0 | Generated at ${new Date(metrics.timestamp).toISOString()}</p>
+          <p>SemanticTest v1.0.0 | Generated at ${new Date(metrics.timestamp).toISOString()}</p>
         </div>
       </footer>
     `;

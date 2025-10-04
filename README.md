@@ -10,7 +10,7 @@
 </p>
 
 ```bash
-npm install semantic-test
+npm install @blade47/semantic-test
 ```
 
 ## Why SemanticTest?
@@ -28,7 +28,7 @@ SemanticTest solves this with:
 ### 1. Install
 
 ```bash
-npm install semantic-test
+npm install @blade47/semantic-test
 ```
 
 ### 2. Create a test
@@ -528,7 +528,7 @@ AI outputs vary. Exact text matching fails. Instead, use another LLM to evaluate
 
 ```javascript
 // blocks/custom/MyBlock.js
-import { Block } from 'semantic-test';
+import { Block } from '@blade47/semantic-test';
 
 export class MyBlock extends Block {
   static get inputs() {
@@ -561,7 +561,7 @@ export class MyBlock extends Block {
 ### Register It
 
 ```javascript
-import { blockRegistry } from 'semantic-test';
+import { blockRegistry } from '@blade47/semantic-test';
 import { MyBlock } from './blocks/custom/MyBlock.js';
 
 blockRegistry.register('MyBlock', MyBlock);
@@ -580,7 +580,7 @@ blockRegistry.register('MyBlock', MyBlock);
 }
 ```
 
-See `blocks/custom/examples/` for complete examples.
+See `blocks/examples/` for complete examples.
 
 ## CLI
 
@@ -604,7 +604,7 @@ LOG_LEVEL=DEBUG npx semtest test.json
 ## Programmatic Usage
 
 ```javascript
-import { PipelineBuilder } from 'semantic-test';
+import { PipelineBuilder } from '@blade47/semantic-test';
 import fs from 'fs/promises';
 
 const testDef = JSON.parse(await fs.readFile('test.json', 'utf-8'));
@@ -653,7 +653,7 @@ See `examples/` directory:
 ### Custom Stream Parsers
 
 ```javascript
-import { StreamParser } from 'semantic-test';
+import { StreamParser } from '@blade47/semantic-test';
 
 function myCustomParser(body) {
   // Parse your custom format

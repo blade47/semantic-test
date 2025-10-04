@@ -311,7 +311,7 @@ registerDefaults() {
 In your test setup file:
 
 ```javascript
-import { blockRegistry } from 'semantic-test';
+import { blockRegistry } from '@blade47/semantic-test';
 import { MyBlock } from './blocks/custom/MyBlock.js';
 
 // Register before running tests
@@ -324,7 +324,7 @@ Create a plugin file:
 
 ```javascript
 // my-blocks-plugin.js
-import { blockRegistry } from 'semantic-test';
+import { blockRegistry } from '@blade47/semantic-test';
 import { BlockA } from './BlockA.js';
 import { BlockB } from './BlockB.js';
 
@@ -496,7 +496,7 @@ export class Retry extends Block {
 ```javascript
 // package.json
 {
-  "name": "semantic-test-database-blocks",
+  "name": "@blade47/semantic-test-database-blocks",
   "version": "1.0.0",
   "main": "index.js",
   "exports": {
@@ -517,8 +517,8 @@ export function register(blockRegistry) {
 
 Usage:
 ```javascript
-import { blockRegistry } from 'semantic-test';
-import { register } from 'semantic-test-database-blocks';
+import { blockRegistry } from '@blade47/semantic-test';
+import { register } from '@blade47/semantic-test-database-blocks';
 
 register(blockRegistry);
 ```
