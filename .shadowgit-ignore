@@ -1,0 +1,53 @@
+# ShadowGit Ignore File
+# Files and patterns listed here will be ignored during automatic snapshots
+# 
+# This file supports glob patterns and regular expressions
+# Lines starting with # are comments
+# Empty lines are ignored
+
+# Editor temporary files
+*.swp
+*.swo
+*.tmp
+*~
+*.bak
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE files (expand to match current hardcoded patterns)
+.vscode/**
+.idea/**
+
+# Dependencies
+node_modules/**
+.pnp
+.pnp.js
+
+# Build outputs
+dist/**
+build/**
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Lock files (change too frequently)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Git files
+.git/**
+.gitignore
+
+# ShadowGit files
+.shadowgit.git/**
+.shadowgit-ignore
