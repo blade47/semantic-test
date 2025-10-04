@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for file in test-examples/*.json)",
+      "Bash(do echo \"Testing $file...\")",
+      "Bash(node:*)",
+      "Bash(done)",
+      "Bash(mkdir:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
