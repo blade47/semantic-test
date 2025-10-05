@@ -1,12 +1,10 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { MockData } from '../../../blocks/test/MockData.js';
-import { DataBus } from '../../../src/core/DataBus.js';
 import { Context } from '../../../src/core/Context.js';
 
 describe('MockData Block', () => {
   let block;
-  let dataBus;
   let context;
 
   test('should return configured data', async () => {
@@ -21,7 +19,6 @@ describe('MockData Block', () => {
       config: { data: mockData }
     });
 
-    dataBus = new DataBus();
     context = new Context();
 
     const result = await block.execute({}, context);
@@ -35,7 +32,6 @@ describe('MockData Block', () => {
       config: { data: {} }
     });
 
-    dataBus = new DataBus();
     context = new Context();
 
     const result = await block.execute({}, context);
@@ -49,7 +45,6 @@ describe('MockData Block', () => {
       config: { data: null }
     });
 
-    dataBus = new DataBus();
     context = new Context();
 
     const result = await block.execute({}, context);
@@ -66,7 +61,6 @@ describe('MockData Block', () => {
       config: { data: arrayData }
     });
 
-    dataBus = new DataBus();
     context = new Context();
 
     const result = await block.execute({}, context);
@@ -80,7 +74,6 @@ describe('MockData Block', () => {
       config: { data: 'test string' }
     });
 
-    dataBus = new DataBus();
     context = new Context();
 
     const result = await block.execute({}, context);
@@ -94,7 +87,6 @@ describe('MockData Block', () => {
       config: { data: 42 }
     });
 
-    dataBus = new DataBus();
     context = new Context();
 
     const result = await block.execute({}, context);
@@ -108,7 +100,6 @@ describe('MockData Block', () => {
       config: { data: true }
     });
 
-    dataBus = new DataBus();
     context = new Context();
 
     const result = await block.execute({}, context);
@@ -119,7 +110,6 @@ describe('MockData Block', () => {
   test('should default to empty object when no config provided', async () => {
     block = new MockData({ id: 'mock' });
 
-    dataBus = new DataBus();
     context = new Context();
 
     const result = await block.execute({}, context);
@@ -148,7 +138,6 @@ describe('MockData Block', () => {
       config: { data: complexData }
     });
 
-    dataBus = new DataBus();
     context = new Context();
 
     const result = await block.execute({}, context);
@@ -164,7 +153,6 @@ describe('MockData Block', () => {
       config: { data: originalData }
     });
 
-    dataBus = new DataBus();
     context = new Context();
 
     const result = await block.execute({}, context);

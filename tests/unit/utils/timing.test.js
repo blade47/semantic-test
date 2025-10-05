@@ -49,7 +49,7 @@ describe('timing utilities', () => {
     });
 
     test('should handle async function that rejects', async () => {
-      const rejectFn = async () => {
+      const rejectFn = () => {
         throw new Error('Async error');
       };
 

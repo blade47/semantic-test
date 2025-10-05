@@ -1,6 +1,6 @@
 {
   "name": "@blade47/semantic-test",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "description": "A composable, pipeline-based testing framework for AI systems and APIs with semantic validation",
   "main": "src/index.js",
   "type": "module",
