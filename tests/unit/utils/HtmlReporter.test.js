@@ -147,7 +147,7 @@ describe('HtmlReporter', () => {
   });
 
   describe('generateReport()', () => {
-    test('should generate HTML report content', async () => {
+    test('should generate HTML report content', () => {
       const batchResults = {
         suites: [
           {

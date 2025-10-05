@@ -1,6 +1,5 @@
 import { Block } from '../../src/core/Block.js';
 import { logger } from '../../src/utils/logger.js';
-import OpenAI from 'openai';
 
 /**
  * LLMJudge - Uses an LLM to evaluate responses
@@ -21,13 +20,28 @@ export class LLMJudge extends Block {
 
   constructor(config) {
     super(config);
-
-    // Initialize OpenAI client
-    this.openai = new OpenAI({
-      apiKey: config.apiKey || process.env.OPENAI_API_KEY
-    });
-
     this.model = config.model || 'gpt-4o-mini';
+    this.apiKey = config.apiKey || process.env.OPENAI_API_KEY;
+    this.openai = null; // Will be initialized lazily when needed
+  }
+
+  async initializeOpenAI() {
+    if (!this.openai) {
+      try {
+        const { default: OpenAI } = await import('openai');
+        this.openai = new OpenAI({
+          apiKey: this.apiKey
+        });
+      } catch (error) {
+        // If the error is about module not found, it means openai isn't installed
+        if (error.code === 'ERR_MODULE_NOT_FOUND') {
+          throw new Error('OpenAI package is required for LLMJudge. Install it with: npm install openai');
+        }
+        // Otherwise, re-throw the original error (e.g., API key validation)
+        throw error;
+      }
+    }
+    return this.openai;
   }
 
   async process(inputs, _context) {
@@ -48,8 +62,11 @@ export class LLMJudge extends Block {
     const prompt = this.buildEvaluationPrompt(text, toolCalls, expected, history);
 
     try {
+      // Initialize OpenAI client if needed
+      const openai = await this.initializeOpenAI();
+
       // Call LLM for evaluation
-      const completion = await this.openai.chat.completions.create({
+      const completion = await openai.chat.completions.create({
         model: this.model,
         messages: [
           {

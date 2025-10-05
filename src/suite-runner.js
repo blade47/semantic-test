@@ -8,8 +8,9 @@ import { logger } from './utils/logger.js';
 import { measureTime } from './utils/timing.js';
 import { SEPARATORS } from './utils/constants.js';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -406,8 +407,14 @@ async function main() {
 }
 
 // Run if called directly
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(err => logger.error('Fatal error', err));
+// Resolve symlinks to handle npx execution via node_modules/.bin/
+if (process.argv[1]) {
+  const scriptPath = fileURLToPath(import.meta.url);
+  const argPath = fsSync.realpathSync(process.argv[1]);
+
+  if (scriptPath === argPath) {
+    main().catch(err => logger.error('Fatal error', err));
+  }
 }
 
 export { SuiteRunner };
