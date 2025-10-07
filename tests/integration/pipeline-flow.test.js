@@ -438,6 +438,220 @@ describe('Pipeline Integration Tests', () => {
     });
   });
 
+  describe('loop block', () => {
+    test('should execute unconditional loop in pipeline', async () => {
+      const config = {
+        name: 'Unconditional Loop Test',
+        pipeline: [
+          {
+            id: 'counter',
+            block: 'MockData',
+            config: {
+              data: { count: 1 }
+            },
+            output: 'data'
+          },
+          {
+            block: 'Loop',
+            config: {
+              target: 'counter',
+              maxIterations: 3
+            }
+          }
+        ]
+      };
+
+      const pipeline = PipelineBuilder.fromJSON(config);
+      const result = await pipeline.execute({});
+
+      // Loop should have executed (signals present)
+      assert.ok(result.success);
+      assert.ok(result.data.data);
+    });
+
+    test('should execute conditional loop - retry pattern', async () => {
+      const config = {
+        name: 'Conditional Loop Test',
+        pipeline: [
+          {
+            id: 'attempt',
+            block: 'MockData',
+            config: {
+              data: { status: 200, attempt: 1 }
+            },
+            output: 'response'
+          },
+          {
+            block: 'Loop',
+            config: {
+              target: 'attempt',
+              maxIterations: 3,
+              condition: {
+                path: 'response.status',
+                operator: 'notEquals',
+                value: 200
+              }
+            }
+          }
+        ]
+      };
+
+      const pipeline = PipelineBuilder.fromJSON(config);
+      const result = await pipeline.execute({});
+
+      assert.ok(result.success);
+      // Since status is 200, should not loop (_shouldLoop should be false)
+      assert.strictEqual(result.data.response.status, 200);
+    });
+
+    test('should work with loop checking threshold', async () => {
+      const config = {
+        name: 'Threshold Loop Test',
+        pipeline: [
+          {
+            id: 'measure',
+            block: 'MockData',
+            config: {
+              data: { score: 0.9 }
+            },
+            output: 'metrics'
+          },
+          {
+            block: 'Loop',
+            config: {
+              target: 'measure',
+              maxIterations: 5,
+              condition: {
+                path: 'metrics.score',
+                operator: 'lt',
+                value: 0.8
+              }
+            }
+          }
+        ]
+      };
+
+      const pipeline = PipelineBuilder.fromJSON(config);
+      const result = await pipeline.execute({});
+
+      assert.ok(result.success);
+      // Score is >= 0.8, should not loop
+      assert.strictEqual(result.data.metrics.score, 0.9);
+    });
+  });
+
+  describe('assertions with new operators', () => {
+    test('should validate with type check operators', async () => {
+      const config = {
+        name: 'Type Check Test',
+        pipeline: [
+          {
+            block: 'MockData',
+            id: 'generator',
+            config: {
+              data: {
+                value: 42,
+                nullable: null,
+                flag: true
+              }
+            },
+            output: 'testData'
+          }
+        ]
+      };
+
+      const pipeline = PipelineBuilder.fromJSON(config);
+      const result = await pipeline.execute({});
+
+      assert.ok(result.success);
+      assert.ok(result.data.testData.value);
+      assert.strictEqual(result.data.testData.nullable, null);
+      assert.strictEqual(result.data.testData.flag, true);
+    });
+
+    test('should validate with length operators', async () => {
+      const config = {
+        name: 'Length Check Test',
+        pipeline: [
+          {
+            block: 'MockData',
+            id: 'generator',
+            config: {
+              data: {
+                name: 'John',
+                items: [1, 2, 3, 4, 5]
+              }
+            },
+            output: 'data'
+          }
+        ]
+      };
+
+      const pipeline = PipelineBuilder.fromJSON(config);
+      const result = await pipeline.execute({});
+
+      assert.ok(result.success);
+      assert.ok(result.data.data.name.length >= 1);
+      assert.ok(result.data.data.items.length <= 10);
+    });
+
+    test('should validate with pattern matching', async () => {
+      const config = {
+        name: 'Pattern Match Test',
+        pipeline: [
+          {
+            block: 'MockData',
+            id: 'generator',
+            config: {
+              data: {
+                email: 'user@example.com',
+                phone: '123-456-7890'
+              }
+            },
+            output: 'contacts'
+          }
+        ]
+      };
+
+      const pipeline = PipelineBuilder.fromJSON(config);
+      const result = await pipeline.execute({});
+
+      assert.ok(result.success);
+      assert.ok(/.*@.*/.test(result.data.contacts.email));
+      assert.ok(/\d{3}-\d{3}-\d{4}/.test(result.data.contacts.phone));
+    });
+
+    test('should validate with empty checks', async () => {
+      const config = {
+        name: 'Empty Check Test',
+        pipeline: [
+          {
+            block: 'MockData',
+            id: 'generator',
+            config: {
+              data: {
+                emptyString: '',
+                emptyArray: [],
+                emptyObject: {},
+                filled: 'data'
+              }
+            },
+            output: 'data'
+          }
+        ]
+      };
+
+      const pipeline = PipelineBuilder.fromJSON(config);
+      const result = await pipeline.execute({});
+
+      assert.ok(result.success);
+      assert.strictEqual(result.data.data.emptyString, '');
+      assert.strictEqual(result.data.data.emptyArray.length, 0);
+      assert.strictEqual(Object.keys(result.data.data.emptyObject).length, 0);
+      assert.ok(result.data.data.filled.length > 0);
+    });
+  });
+
   describe('performance', () => {
     test('should handle large data efficiently', async () => {
       const largeArray = Array(1000).fill(0).map((_, i) => ({

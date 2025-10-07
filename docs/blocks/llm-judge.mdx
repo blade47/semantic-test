@@ -1,0 +1,383 @@
+---
+title: 'LLMJudge'
+description: 'Use AI to evaluate responses semantically'
+icon: 'gavel'
+---
+
+## Overview
+
+The **LLMJudge** block uses AI (OpenAI GPT models) to evaluate responses semantically instead of using exact string matching.
+
+<Note>
+  Requires `OPENAI_API_KEY` environment variable. All other blocks work without it!
+</Note>
+
+## Why LLM Judge?
+
+AI responses are non-deterministic. These responses all mean the same thing:
+
+- "The meeting is at 2:00 PM"
+- "Your meeting is scheduled for 2 PM"
+- "I've set your meeting for 14:00"
+- "Meeting confirmed for two in the afternoon"
+
+Exact string matching would fail on all but one. **LLM Judge understands semantic meaning**.
+
+## Basic Usage
+
+```json
+{
+  "block": "LLMJudge",
+  "input": {
+    "text": "${response.text}",
+    "expected": {
+      "expectedBehavior": "Should confirm the meeting time and location"
+    }
+  },
+  "config": {
+    "model": "gpt-4o-mini"
+  },
+  "output": "judgement"
+}
+```
+
+## Input Parameters
+
+<ParamField path="text" type="string" required>
+  The AI response text to evaluate
+</ParamField>
+
+<ParamField path="toolCalls" type="array">
+  Tool calls made by the AI (if any)
+</ParamField>
+
+<ParamField path="expected" type="object" required>
+  What the AI should do
+
+  <Expandable title="properties">
+    <ParamField path="expectedBehavior" type="string" required>
+      Description of what the AI should accomplish
+    </ParamField>
+
+    <ParamField path="constraints" type="string[]">
+      Things the AI must or must not do
+
+      ```json
+      "constraints": [
+        "Must ask for user confirmation before booking",
+        "Must not delete any existing events"
+      ]
+      ```
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="history" type="array">
+  Conversation history for multi-turn conversations
+
+  ```json
+  "history": [
+    { "role": "user", "content": "Hello" },
+    { "role": "assistant", "content": "Hi! How can I help?" },
+    { "role": "user", "content": "Book a meeting" }
+  ]
+  ```
+</ParamField>
+
+## Configuration
+
+<ParamField path="model" type="string" default="gpt-4o-mini">
+  OpenAI model to use for judging. Options:
+  - `gpt-4o-mini` (recommended, fast and cheap)
+  - `gpt-4o`
+  - `gpt-4-turbo`
+</ParamField>
+
+<ParamField path="criteria" type="object">
+  Custom scoring criteria with weights (must sum to 1.0)
+
+  ```json
+  "criteria": {
+    "accuracy": 0.4,
+    "completeness": 0.3,
+    "relevance": 0.2,
+    "helpfulness": 0.1
+  }
+  ```
+
+  Default criteria:
+  - accuracy: 0.4
+  - completeness": 0.3
+  - relevance: 0.3
+</ParamField>
+
+<ParamField path="continueConversation" type="boolean" default="false">
+  Whether the judge should suggest a next prompt for multi-turn testing
+</ParamField>
+
+<ParamField path="maxTurns" type="number">
+  Max conversation turns when using `continueConversation`
+</ParamField>
+
+## Output
+
+<ResponseField name="score" type="number">
+  Overall score from 0 to 1
+</ResponseField>
+
+<ResponseField name="reasoning" type="string">
+  Explanation of the score
+</ResponseField>
+
+<ResponseField name="shouldContinue" type="boolean">
+  Whether to continue the conversation (when using `continueConversation`)
+</ResponseField>
+
+<ResponseField name="nextPrompt" type="string">
+  Suggested next user message (when using `continueConversation`)
+</ResponseField>
+
+<ResponseField name="details" type="object">
+  Detailed breakdown by criteria
+
+  ```javascript
+  {
+    accuracy: 0.9,
+    completeness: 0.8,
+    relevance: 0.95
+  }
+  ```
+</ResponseField>
+
+## Examples
+
+### Basic Semantic Validation
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "https://api.example.com/chat",
+        "method": "POST",
+        "body": {
+          "message": "What's the weather like?"
+        }
+      },
+      "output": "response"
+    },
+    {
+      "block": "LLMJudge",
+      "input": {
+        "text": "${response.body.message}",
+        "expected": {
+          "expectedBehavior": "Should provide weather information or explain how to get it"
+        }
+      },
+      "config": {
+        "model": "gpt-4o-mini"
+      },
+      "output": "judgement"
+    }
+  ],
+  "assertions": {
+    "judgement.score": { "gt": 0.7 }
+  }
+}
+```
+
+### Validating Tool Calls
+
+```json
+{
+  "block": "LLMJudge",
+  "input": {
+    "text": "${response.text}",
+    "toolCalls": "${response.toolCalls}",
+    "expected": {
+      "expectedBehavior": "Should search for flights and show results",
+      "constraints": [
+        "Must use search_flights tool",
+        "Must confirm dates before booking",
+        "Must not book without user confirmation"
+      ]
+    }
+  },
+  "config": {
+    "model": "gpt-4o-mini"
+  },
+  "output": "validation"
+}
+```
+
+### Multi-turn Conversation
+
+```json
+{
+  "block": "LLMJudge",
+  "input": {
+    "text": "${response.text}",
+    "toolCalls": "${response.toolCalls}",
+    "history": [
+      { "role": "user", "content": "I need to schedule a meeting" },
+      { "role": "assistant", "content": "I'd be happy to help! What time works for you?" },
+      { "role": "user", "content": "Tomorrow at 2 PM" }
+    ],
+    "expected": {
+      "expectedBehavior": "Should confirm the time and ask about attendees or location"
+    }
+  },
+  "config": {
+    "model": "gpt-4o-mini",
+    "continueConversation": true,
+    "maxTurns": 5
+  },
+  "output": "judgement"
+}
+```
+
+If `judgement.shouldContinue` is `true`, you can use `judgement.nextPrompt` to continue testing:
+
+```json
+{
+  "block": "HttpRequest",
+  "input": {
+    "url": "https://api.example.com/chat",
+    "body": {
+      "message": "${judgement.nextPrompt}"
+    }
+  }
+}
+```
+
+### Custom Scoring Criteria
+
+```json
+{
+  "block": "LLMJudge",
+  "input": {
+    "text": "${response.text}",
+    "expected": {
+      "expectedBehavior": "Should provide a detailed technical explanation"
+    }
+  },
+  "config": {
+    "model": "gpt-4o-mini",
+    "criteria": {
+      "accuracy": 0.5,        // Most important
+      "completeness": 0.3,    // Somewhat important
+      "clarity": 0.2          // Less important
+    }
+  }
+}
+```
+
+## Cost Considerations
+
+LLM Judge uses OpenAI API calls:
+
+| Model | Cost per 1K tokens | Typical cost per evaluation |
+|-------|-------------------|----------------------------|
+| gpt-4o-mini | $0.00015 | ~$0.001 |
+| gpt-4o | $0.005 | ~$0.02 |
+| gpt-4-turbo | $0.01 | ~$0.04 |
+
+<Tip>
+  **Use gpt-4o-mini for most tests.** It's 30x cheaper than GPT-4 and works great for semantic validation.
+</Tip>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Be Specific in Expected Behavior">
+    ```json
+    // Good
+    "expectedBehavior": "Should search for flights from NYC to LAX on March 15th and present top 3 options sorted by price"
+
+    // Bad
+    "expectedBehavior": "Should search flights"
+    ```
+  </Accordion>
+
+  <Accordion title="Use Constraints for Important Rules">
+    ```json
+    "expected": {
+      "expectedBehavior": "Should book the flight",
+      "constraints": [
+        "Must confirm price before booking",
+        "Must not exceed $500 budget",
+        "Must offer travel insurance"
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Set Reasonable Score Thresholds">
+    ```json
+    // For critical features
+    "assertions": {
+      "judgement.score": { "gt": 0.8 }
+    }
+
+    // For nice-to-have features
+    "assertions": {
+      "judgement.score": { "gt": 0.6 }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Combine with Other Validators">
+    Use LLM Judge for semantic meaning, other validators for structure:
+
+    ```json
+    {
+      "pipeline": [
+        { "block": "ValidateTools" },     // Tool calls are correct
+        { "block": "ValidateContent" },   // Response has required text
+        { "block": "LLMJudge" }           // Response makes semantic sense
+      ]
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Understanding the Reasoning
+
+The judge provides detailed reasoning:
+
+```json
+{
+  "score": 0.85,
+  "reasoning": "The response correctly identifies the user's intent to book a flight and uses the search_flights tool with appropriate parameters. It confirms the dates and asks for user confirmation before proceeding. However, it could be more specific about the departure time preferences.",
+  "details": {
+    "accuracy": 0.9,      // AI understood intent correctly
+    "completeness": 0.75, // Missing some details
+    "relevance": 0.9      // Response is highly relevant
+  }
+}
+```
+
+Use this to:
+- Debug why tests fail
+- Understand AI behavior
+- Improve your prompts
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="AI Testing Guide"
+    icon="robot"
+    href="/ai-testing/overview"
+  >
+    Complete guide to testing AI systems
+  </Card>
+  <Card
+    title="ValidateTools Block"
+    icon="wrench"
+    href="/blocks/validate-tools"
+  >
+    Validate AI tool calls
+  </Card>
+</CardGroup>

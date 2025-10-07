@@ -1,0 +1,464 @@
+---
+title: 'MockData'
+description: 'Provide mock data for testing without external dependencies'
+icon: 'box'
+---
+
+## Overview
+
+The **MockData** block returns static data defined in its configuration. Perfect for testing pipelines without making real HTTP requests or for providing test fixtures.
+
+```json
+{
+  "block": "MockData",
+  "config": {
+    "data": {
+      "id": 1,
+      "name": "Test User"
+    }
+  },
+  "output": "user"
+}
+```
+
+## Input Parameters
+
+None. MockData doesn't take any inputs.
+
+## Configuration
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `data` | object | The data to return (can be any structure) |
+
+## Output Fields
+
+The block returns whatever fields are defined in `config.data`.
+
+## Examples
+
+### Basic Mock Data
+
+```json
+{
+  "block": "MockData",
+  "config": {
+    "data": {
+      "message": "Hello, World!",
+      "timestamp": "2024-01-01T00:00:00Z"
+    }
+  },
+  "output": "mockResponse"
+}
+```
+
+**Output:**
+```javascript
+{
+  message: "Hello, World!",
+  timestamp: "2024-01-01T00:00:00Z"
+}
+```
+
+### Mock User Object
+
+```json
+{
+  "block": "MockData",
+  "config": {
+    "data": {
+      "id": 123,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "roles": ["admin", "user"],
+      "profile": {
+        "bio": "Software engineer",
+        "location": "San Francisco"
+      }
+    }
+  },
+  "output": "user"
+}
+```
+
+### Mock API Response
+
+```json
+{
+  "block": "MockData",
+  "config": {
+    "data": {
+      "status": 200,
+      "body": '{"id": 1, "name": "John"}',
+      "headers": {
+        "content-type": "application/json"
+      }
+    }
+  },
+  "output": "response"
+}
+```
+
+This mimics an HttpRequest output, allowing you to test without making real requests.
+
+### Mock Array Data
+
+```json
+{
+  "block": "MockData",
+  "config": {
+    "data": {
+      "users": [
+        { "id": 1, "name": "Alice" },
+        { "id": 2, "name": "Bob" },
+        { "id": 3, "name": "Charlie" }
+      ]
+    }
+  },
+  "output": "data"
+}
+```
+
+## Common Patterns
+
+### Testing Validation Logic
+
+```json
+{
+  "name": "Validation Test",
+  "tests": [{
+    "id": "test-validation",
+    "pipeline": [
+      {
+        "block": "MockData",
+        "config": {
+          "data": {
+            "message": "Hello! This is a test message."
+          }
+        },
+        "output": "mockData"
+      },
+      {
+        "block": "ValidateContent",
+        "input": {
+          "from": "mockData.message",
+          "as": "text"
+        },
+        "config": {
+          "contains": ["Hello", "test"]
+        },
+        "output": "validation"
+      }
+    ],
+    "assertions": {
+      "validation.passed": true
+    }
+  }]
+}
+```
+
+### Testing LLM Judge
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "MockData",
+      "config": {
+        "data": {
+          "response": "The meeting is scheduled for 2:00 PM tomorrow."
+        }
+      },
+      "output": "aiResponse"
+    },
+    {
+      "block": "LLMJudge",
+      "input": {
+        "text": "${aiResponse.response}",
+        "expected": {
+          "expectedBehavior": "Should mention a time and date"
+        }
+      },
+      "output": "judgement"
+    }
+  ],
+  "assertions": {
+    "judgement.score": { "gt": 0.7 }
+  }
+}
+```
+
+### Mock Multiple Blocks
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "mock-user",
+      "block": "MockData",
+      "config": {
+        "data": {
+          "id": 1,
+          "name": "Alice"
+        }
+      },
+      "output": "user"
+    },
+    {
+      "id": "mock-posts",
+      "block": "MockData",
+      "config": {
+        "data": {
+          "posts": [
+            { "id": 101, "userId": 1, "title": "First Post" },
+            { "id": 102, "userId": 1, "title": "Second Post" }
+          ]
+        }
+      },
+      "output": "posts"
+    }
+  ],
+  "assertions": {
+    "user.id": 1,
+    "posts.posts[0].userId": 1
+  }
+}
+```
+
+### Progressive Enhancement
+
+Start with mock data, then replace with real requests:
+
+```json
+{
+  "tests": [
+    {
+      "id": "test-with-mock",
+      "pipeline": [
+        {
+          "block": "MockData",
+          "config": {
+            "data": { "id": 1, "name": "Test User" }
+          },
+          "output": "user"
+        }
+      ],
+      "assertions": {
+        "user.name": { "matches": ".+" }
+      }
+    },
+    {
+      "id": "test-with-real-api",
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "${BASE_URL}/users/1",
+            "method": "GET"
+          },
+          "output": "response"
+        },
+        {
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": { "parsed": "user" }
+        }
+      ],
+      "assertions": {
+        "user.name": { "matches": ".+" }
+      }
+    }
+  ]
+}
+```
+
+## Full Example
+
+```json
+{
+  "name": "Mock Data Example",
+  "tests": [{
+    "id": "test-user-validation",
+    "pipeline": [
+      {
+        "id": "create-mock-user",
+        "block": "MockData",
+        "config": {
+          "data": {
+            "id": 123,
+            "name": "John Doe",
+            "email": "john@example.com",
+            "age": 30,
+            "roles": ["admin", "user"],
+            "profile": {
+              "bio": "Software engineer with 10 years experience",
+              "website": "https://johndoe.com"
+            }
+          }
+        },
+        "output": "user"
+      },
+      {
+        "id": "validate-email",
+        "block": "ValidateContent",
+        "input": {
+          "from": "user.email",
+          "as": "text"
+        },
+        "config": {
+          "matches": "^[\\w.-]+@[\\w.-]+\\.\\w+$"
+        },
+        "output": "emailValidation"
+      },
+      {
+        "id": "validate-bio",
+        "block": "ValidateContent",
+        "input": {
+          "from": "user.profile.bio",
+          "as": "text"
+        },
+        "config": {
+          "contains": ["engineer"]
+        },
+        "output": "bioValidation"
+      }
+    ],
+    "assertions": {
+      "user.id": 123,
+      "user.age": { "gt": 18 },
+      "user.roles": { "contains": "admin" },
+      "emailValidation.passed": true,
+      "bioValidation.passed": true
+    }
+  }]
+}
+```
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Use for Unit Testing">
+    Mock data is perfect for testing validation logic without external dependencies:
+
+    ```json
+    {
+      "pipeline": [
+        {
+          "block": "MockData",
+          "config": { "data": { "text": "test data" } },
+          "output": "mock"
+        },
+        {
+          "block": "ValidateContent",
+          "input": { "from": "mock.text", "as": "text" },
+          "config": { "contains": "test" },
+          "output": "validation"
+        }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Mimic Real API Structure">
+    Structure mock data to match real API responses:
+
+    ```json
+    {
+      "config": {
+        "data": {
+          "status": 200,
+          "body": '{"result": "success"}',
+          "headers": { "content-type": "application/json" }
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Test Edge Cases">
+    Create mocks for edge cases and error scenarios:
+
+    ```json
+    {
+      "tests": [
+        {
+          "id": "test-empty-data",
+          "pipeline": [{
+            "block": "MockData",
+            "config": { "data": { "items": [] } },
+            "output": "empty"
+          }]
+        },
+        {
+          "id": "test-null-fields",
+          "pipeline": [{
+            "block": "MockData",
+            "config": { "data": { "name": null } },
+            "output": "nullData"
+          }]
+        }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Combine with Real Blocks">
+    Mix mock and real blocks to test specific parts of your pipeline:
+
+    ```json
+    {
+      "pipeline": [
+        {
+          "block": "MockData",
+          "config": { "data": { "apiKey": "test-key" } },
+          "output": "config"
+        },
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "${API_URL}/data",
+            "method": "GET",
+            "headers": {
+              "Authorization": "Bearer ${config.apiKey}"
+            }
+          },
+          "output": "response"
+        }
+      ]
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## When to Use
+
+**Use MockData when:**
+- Testing validation logic without external APIs
+- Creating reproducible test fixtures
+- Developing tests before APIs are available
+- Testing edge cases and error scenarios
+- Running tests without network access
+
+**Don't use when:**
+- Testing actual API integration (use HttpRequest)
+- Verifying real system behavior
+- Load testing or performance testing
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="ValidateContent"
+    icon="check"
+    href="/blocks/validate-content"
+  >
+    Validate mock data
+  </Card>
+  <Card
+    title="LLMJudge"
+    icon="gavel"
+    href="/blocks/llm-judge"
+  >
+    Use AI to validate mock responses
+  </Card>
+</CardGroup>

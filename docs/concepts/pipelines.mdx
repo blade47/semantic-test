@@ -1,0 +1,228 @@
+---
+title: 'Pipelines'
+description: 'Understanding the pipeline architecture'
+icon: 'diagram-project'
+---
+
+## What is a Pipeline?
+
+A pipeline is a sequence of **blocks** that execute in order. Each block performs one specific task, and data flows through the pipeline via named **slots**.
+
+```
+HttpRequest → JsonParser → Validate → LLMJudge → Assert
+```
+
+This architecture makes tests:
+- **Readable**: Each block has a clear purpose
+- **Reusable**: Mix and match blocks for different scenarios
+- **Maintainable**: Easy to add, remove, or reorder steps
+
+## Basic Pipeline Structure
+
+```json
+{
+  "tests": [{
+    "id": "my-test",
+    "pipeline": [
+      {
+        "id": "step1",
+        "block": "HttpRequest",
+        "input": { "url": "https://api.example.com" },
+        "output": "response"
+      },
+      {
+        "id": "step2",
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": "data"
+      }
+    ],
+    "assertions": {
+      "response.status": 200
+    }
+  }]
+}
+```
+
+Each block has:
+- **id**: Unique identifier for this step
+- **block**: The block type to use
+- **input**: Data to process (from previous blocks)
+- **output**: Where to store the result
+- **config** (optional): Block-specific configuration
+
+## Execution Flow
+
+<Steps>
+  <Step title="Initialize">
+    Pipeline loads and prepares all blocks
+  </Step>
+
+  <Step title="Execute in Sequence">
+    Each block runs one after another:
+    1. Reads inputs from the DataBus
+    2. Processes data
+    3. Writes outputs to the DataBus
+  </Step>
+
+  <Step title="Validate Assertions">
+    After all blocks complete, assertions are checked
+  </Step>
+
+  <Step title="Report Results">
+    Success or failure with detailed information
+  </Step>
+</Steps>
+
+## Why Pipelines?
+
+### Composability
+
+Build complex tests from simple blocks:
+
+```json
+{
+  "pipeline": [
+    { "block": "HttpRequest" },      // Fetch data
+    { "block": "JsonParser" },       // Parse response
+    { "block": "ValidateContent" },  // Check content
+    { "block": "LLMJudge" },         // Semantic validation
+    { "block": "ValidateTools" }     // Check tool calls
+  ]
+}
+```
+
+### Reusability
+
+Use the same blocks in different combinations:
+
+```json
+// Test 1: Simple validation
+{
+  "pipeline": [
+    { "block": "HttpRequest" },
+    { "block": "ValidateContent" }
+  ]
+}
+
+// Test 2: Semantic validation
+{
+  "pipeline": [
+    { "block": "HttpRequest" },
+    { "block": "LLMJudge" }
+  ]
+}
+```
+
+### Maintainability
+
+Easy to modify tests:
+
+```json
+// Add a new step
+{
+  "pipeline": [
+    { "block": "HttpRequest" },
+    { "block": "JsonParser" },
+    { "block": "ValidateContent" },  // ← New step
+    { "block": "LLMJudge" }
+  ]
+}
+```
+
+## Multiple Tests
+
+You can run multiple tests in sequence:
+
+```json
+{
+  "name": "User API Tests",
+  "tests": [
+    {
+      "id": "create-user",
+      "pipeline": [ /* ... */ ]
+    },
+    {
+      "id": "get-user",
+      "pipeline": [ /* ... */ ]
+    },
+    {
+      "id": "update-user",
+      "pipeline": [ /* ... */ ]
+    }
+  ]
+}
+```
+
+<Note>
+  Each test runs in isolation with its own DataBus. Tests don't share data unless you use `setup`/`teardown`.
+</Note>
+
+## Setup and Teardown
+
+For shared setup across tests:
+
+```json
+{
+  "setup": [
+    {
+      "id": "auth",
+      "block": "HttpRequest",
+      "input": {
+        "url": "https://api.example.com/auth/login",
+        "method": "POST",
+        "body": { "username": "test", "password": "test123" }
+      },
+      "output": "authToken"
+    }
+  ],
+  "tests": [
+    {
+      "id": "test1",
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "https://api.example.com/users",
+            "headers": {
+              "Authorization": "Bearer ${authToken.body.token}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "teardown": [
+    {
+      "id": "logout",
+      "block": "HttpRequest",
+      "input": {
+        "url": "https://api.example.com/auth/logout",
+        "method": "POST"
+      }
+    }
+  ]
+}
+```
+
+**Setup** runs once before all tests.
+**Teardown** runs once after all tests (even if tests fail).
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Data Flow"
+    icon="diagram-project"
+    href="/concepts/data-flow"
+  >
+    Learn how data moves through pipelines
+  </Card>
+  <Card
+    title="Browse Blocks"
+    icon="cube"
+    href="/blocks/overview"
+  >
+    See all available blocks
+  </Card>
+</CardGroup>

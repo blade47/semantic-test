@@ -12,8 +12,8 @@ describe('ValidateContent', () => {
   describe('input/output definitions', () => {
     test('should have correct inputs', () => {
       const { inputs } = ValidateContent;
-      assert.deepStrictEqual(inputs.required, ['text']);
-      assert.deepStrictEqual(inputs.optional, []);
+      assert.deepStrictEqual(inputs.required, []);
+      assert.deepStrictEqual(inputs.optional, ['text']);
     });
 
     test('should have correct outputs', () => {
@@ -287,6 +287,24 @@ describe('ValidateContent', () => {
       const result = validator.process({ text: 'Celebration 🎉 time!' });
 
       assert.strictEqual(result.passed, true);
+    });
+
+    test('should fail when text is undefined', () => {
+      validator = new ValidateContent({ minLength: 5 });
+      const result = validator.process({ text: undefined });
+
+      assert.strictEqual(result.passed, false);
+      assert.strictEqual(result.score, 0);
+      assert.ok(result.failures[0].includes('Missing required input: text'));
+    });
+
+    test('should fail when text is null', () => {
+      validator = new ValidateContent({ contains: 'hello' });
+      const result = validator.process({ text: null });
+
+      assert.strictEqual(result.passed, false);
+      assert.strictEqual(result.score, 0);
+      assert.ok(result.failures[0].includes('Missing required input: text'));
     });
   });
 

@@ -1,0 +1,383 @@
+---
+title: 'Output Formats'
+description: 'Three ways blocks can output data'
+icon: 'box'
+---
+
+## Overview
+
+Blocks write their results to the DataBus using the `output` field. SemanticTest supports **three different output formats** to give you flexibility in how data is stored.
+
+## 1. String Format (Simple)
+
+Store the entire block output in a single named slot:
+
+```json
+{
+  "block": "HttpRequest",
+  "input": { "url": "https://api.example.com/users/1" },
+  "output": "response"
+}
+```
+
+**What happens:**
+- Block's entire output object is stored in the `response` slot
+- Access it later with `${response.status}`, `${response.body}`, etc.
+
+**DataBus after execution:**
+```javascript
+{
+  response: {
+    status: 200,
+    body: '{"id": 1, "name": "John"}',
+    headers: { /* ... */ }
+  }
+}
+```
+
+**When to use:**
+- Most common format
+- Simple and clear
+- Keep all related data together
+
+## 2. Object Format (Mapping)
+
+Map specific output fields to different slots:
+
+```json
+{
+  "block": "JsonParser",
+  "input": "${response.body}",
+  "output": {
+    "parsed": "userData",
+    "error": "parseError"
+  }
+}
+```
+
+**What happens:**
+- Block's `parsed` field goes to `userData` slot
+- Block's `error` field goes to `parseError` slot
+
+**DataBus after execution:**
+```javascript
+{
+  response: { /* ... */ },
+  userData: {
+    id: 1,
+    name: "John"
+  },
+  parseError: null
+}
+```
+
+**When to use:**
+- Split block output into separate slots
+- Different parts need different names
+- Avoid deeply nested data access
+
+## 3. Default Format (No Output Field)
+
+If you don't specify `output`, the block ID is used:
+
+```json
+{
+  "id": "fetchUser",
+  "block": "HttpRequest",
+  "input": { "url": "https://api.example.com/users/1" }
+  // No output field
+}
+```
+
+**What happens:**
+- Output is stored in a slot named after the block ID
+- Access it with `${fetchUser.status}`, `${fetchUser.body}`, etc.
+
+**DataBus after execution:**
+```javascript
+{
+  fetchUser: {
+    status: 200,
+    body: '{"id": 1, "name": "John"}',
+    headers: { /* ... */ }
+  }
+}
+```
+
+**When to use:**
+- Quick prototyping
+- Block ID is already descriptive
+- Less typing
+
+## Comparison
+
+<Tabs>
+  <Tab title="String Format">
+    ```json
+    {
+      "id": "step1",
+      "block": "HttpRequest",
+      "output": "userResponse"
+    }
+
+    // Access with:
+    // ${userResponse.status}
+    // ${userResponse.body}
+    ```
+  </Tab>
+
+  <Tab title="Object Format">
+    ```json
+    {
+      "id": "step2",
+      "block": "JsonParser",
+      "output": {
+        "parsed": "user",
+        "error": "userError"
+      }
+    }
+
+    // Access with:
+    // ${user.name}
+    // ${userError}
+    ```
+  </Tab>
+
+  <Tab title="Default Format">
+    ```json
+    {
+      "id": "getUser",
+      "block": "HttpRequest"
+      // Uses "getUser" as slot name
+    }
+
+    // Access with:
+    // ${getUser.status}
+    // ${getUser.body}
+    ```
+  </Tab>
+</Tabs>
+
+## Full Pipeline Example
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "request",
+      "block": "HttpRequest",
+      "input": { "url": "https://api.example.com/users/1" },
+      "output": "response"              // String format
+    },
+    {
+      "id": "parse",
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": {                        // Object format
+        "parsed": "user",
+        "error": "parseError"
+      }
+    },
+    {
+      "id": "validate",
+      "block": "ValidateContent",
+      "input": {
+        "from": "user.email",
+        "as": "text"
+      }
+      // Default format - uses "validate" as slot name
+    }
+  ],
+  "assertions": {
+    "response.status": 200,
+    "user.id": 1,
+    "validate.passed": true
+  }
+}
+```
+
+**DataBus state:**
+```javascript
+{
+  response: {
+    status: 200,
+    body: '{"id": 1, "email": "user@example.com"}'
+  },
+  user: {
+    id: 1,
+    email: "user@example.com"
+  },
+  parseError: null,
+  validate: {
+    passed: true,
+    checks: { /* ... */ }
+  }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Descriptive Slot Names">
+    ```json
+    // Good - clear what the data is
+    "output": "userProfile"
+    "output": "authToken"
+    "output": "validationResult"
+
+    // Bad - vague
+    "output": "data"
+    "output": "result"
+    "output": "temp"
+    ```
+  </Accordion>
+
+  <Accordion title="Use Object Format to Simplify Access">
+    ```json
+    // Without object format
+    {
+      "block": "JsonParser",
+      "output": "parsed"
+    }
+    // Access: ${parsed.parsed.user.email} (awkward)
+
+    // With object format
+    {
+      "block": "JsonParser",
+      "output": {
+        "parsed": "user"
+      }
+    }
+    // Access: ${user.email} (clean)
+    ```
+  </Accordion>
+
+  <Accordion title="Match Block ID to Purpose">
+    ```json
+    // Good - ID describes what it does
+    {
+      "id": "authenticateUser",
+      "block": "HttpRequest"
+      // Can use default output: ${authenticateUser.body}
+    }
+
+    // Bad - generic ID
+    {
+      "id": "step1",
+      "block": "HttpRequest"
+      // ${step1.body} doesn't tell us what it is
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Separate Concerns with Object Format">
+    ```json
+    // When a block produces multiple types of data
+    {
+      "block": "StreamParser",
+      "input": "${response.body}",
+      "output": {
+        "text": "aiMessage",
+        "toolCalls": "aiTools",
+        "chunks": "streamChunks",
+        "metadata": "streamMeta"
+      }
+    }
+
+    // Now you can use them independently:
+    // ${aiMessage} in one block
+    // ${aiTools} in another block
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Common Patterns
+
+### HTTP Request and Parse
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": { "url": "${API_URL}" },
+      "output": "httpResponse"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${httpResponse.body}",
+      "output": {
+        "parsed": "data"
+      }
+    }
+  ]
+}
+```
+
+### Stream Parsing with Split Output
+
+```json
+{
+  "block": "StreamParser",
+  "input": "${response.body}",
+  "config": { "format": "sse-openai" },
+  "output": {
+    "text": "aiText",
+    "toolCalls": "aiToolCalls",
+    "metadata": "streamInfo"
+  }
+}
+```
+
+### Validation Results
+
+```json
+{
+  "block": "LLMJudge",
+  "input": {
+    "text": "${aiResponse}",
+    "expected": {
+      "expectedBehavior": "Should greet the user"
+    }
+  },
+  "output": "judgement"
+}
+
+// Access later:
+// ${judgement.score}
+// ${judgement.reasoning}
+```
+
+## Output Field Reference
+
+Different blocks produce different output fields. Check each block's documentation:
+
+| Block | Common Output Fields |
+|-------|---------------------|
+| HttpRequest | `status`, `body`, `headers` |
+| JsonParser | `parsed`, `error` |
+| StreamParser | `text`, `toolCalls`, `chunks`, `metadata` |
+| ValidateContent | `passed`, `failures`, `score`, `checks` |
+| ValidateTools | `passed`, `failures`, `score`, `actualTools`, `expectedTools` |
+| LLMJudge | `score`, `reasoning`, `shouldContinue`, `nextPrompt`, `details` |
+| Loop | `_loopTo`, `_maxLoops`, `_terminate` |
+| MockData | Whatever you configure |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Input Formats"
+    icon="inbox"
+    href="/concepts/input-formats"
+  >
+    Learn how to pass data to blocks
+  </Card>
+  <Card
+    title="Assertions"
+    icon="check"
+    href="/concepts/assertions"
+  >
+    Validate your test results
+  </Card>
+</CardGroup>

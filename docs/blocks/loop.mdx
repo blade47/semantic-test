@@ -1,0 +1,716 @@
+---
+title: 'Loop'
+description: 'Repeat blocks in your pipeline conditionally'
+icon: 'rotate'
+---
+
+## Overview
+
+The **Loop** block signals the pipeline to jump back to a previous block, allowing you to repeat portions of your test. Useful for retry logic, polling, or testing iterative agent behaviors.
+
+```json
+{
+  "block": "Loop",
+  "config": {
+    "target": "checkStatus",
+    "maxIterations": 5
+  }
+}
+```
+
+## Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `target` | string/number | required | Block ID or index to loop back to |
+| `maxIterations` | number | `10` | Maximum iterations to prevent infinite loops |
+| `condition` | object | optional | Condition object to evaluate. Loop continues while condition is true. If omitted, loops unconditionally. |
+
+## Input Parameters
+
+Loop accepts any inputs and passes them through. This allows you to carry data through loop iterations.
+
+## Output Fields
+
+Loop outputs special control fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `_loopTo` | string/number | Target block to loop back to (only when looping) |
+| `_maxLoops` | number | Maximum iterations allowed (only when looping) |
+| `_shouldLoop` | boolean | Whether the loop condition was met and looping should occur |
+
+Plus all input fields are passed through.
+
+## How It Works
+
+1. Pipeline executes blocks in sequence
+2. When Loop executes, it evaluates the condition (if provided)
+3. If condition is true (or no condition), returns `_loopTo`, `_maxLoops`, and `_shouldLoop: true`
+4. Pipeline jumps back to the target block
+5. Blocks between target and Loop execute again
+6. Loop counter increments each iteration
+7. When condition becomes false or maxIterations reached, loop stops
+
+**Example flow:**
+
+```
+Block 1 → Block 2 → Block 3 (Loop target="Block 2") → back to Block 2
+         ↑                                           │
+         └───────────────────────────────────────────┘
+```
+
+## Conditional Logic
+
+Loop supports conditional evaluation to control when looping occurs. The `condition` parameter accepts an object with:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | string | Path to value in DataBus (e.g., `"response.status"`) |
+| `operator` | string | Comparison operator (see below) |
+| `value` | any | Expected value to compare against |
+
+### Available Operators
+
+- **Equality:** `equals`, `notEquals`
+- **Numeric:** `gt`, `gte`, `lt`, `lte`
+- **String/Array:** `contains`, `notContains`, `minLength`, `maxLength`
+- **Pattern:** `matches`, `notMatches`
+- **Type:** `isNull`, `isNotNull`, `isDefined`, `isUndefined`
+- **Boolean:** `isTrue`, `isFalse`
+- **Empty:** `isEmpty`, `isNotEmpty`
+
+### Condition Examples
+
+```json
+{
+  "condition": {
+    "path": "response.status",
+    "operator": "notEquals",
+    "value": 200
+  }
+}
+```
+
+Loops while `response.status` is not 200.
+
+```json
+{
+  "condition": {
+    "path": "job.progress",
+    "operator": "lt",
+    "value": 100
+  }
+}
+```
+
+Loops while `job.progress` is less than 100.
+
+```json
+{
+  "condition": {
+    "path": "data.ready",
+    "operator": "isFalse"
+  }
+}
+```
+
+Loops while `data.ready` is false.
+
+## Examples
+
+### Basic Loop
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "attempt",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/status",
+        "method": "GET"
+      },
+      "output": "response"
+    },
+    {
+      "id": "check",
+      "block": "Loop",
+      "config": {
+        "target": "attempt",
+        "maxIterations": 5
+      }
+    }
+  ]
+}
+```
+
+This loops back to "attempt" up to 5 times.
+
+### Conditional Loop (Polling)
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "checkStatus",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/job/${jobId}/status",
+        "method": "GET"
+      },
+      "output": "statusResponse"
+    },
+    {
+      "id": "parse",
+      "block": "JsonParser",
+      "input": "${statusResponse.body}",
+      "output": {
+        "parsed": "status"
+      }
+    },
+    {
+      "id": "conditionalLoop",
+      "block": "Loop",
+      "config": {
+        "target": "checkStatus",
+        "maxIterations": 10,
+        "condition": {
+          "path": "status.state",
+          "operator": "notEquals",
+          "value": "completed"
+        }
+      }
+    }
+  ],
+  "assertions": {
+    "status.state": "completed"
+  }
+}
+```
+
+**How it works:** The loop checks `status.state` each iteration. If it's not "completed", it loops back to `checkStatus`. When the status becomes "completed" (or maxIterations is reached), the loop stops and assertions verify the final state.
+
+### Retry Until Success
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "attempt",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${API_URL}/flaky-endpoint",
+        "method": "GET"
+      },
+      "output": "response"
+    },
+    {
+      "id": "retry",
+      "block": "Loop",
+      "config": {
+        "target": "attempt",
+        "maxIterations": 3,
+        "condition": {
+          "path": "response.status",
+          "operator": "notEquals",
+          "value": 200
+        }
+      }
+    }
+  ],
+  "assertions": {
+    "response.status": 200
+  }
+}
+```
+
+This retries the request up to 3 times, stopping as soon as it gets a 200 status.
+
+### Threshold Checking
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "measure",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${API_URL}/metrics",
+        "method": "GET"
+      },
+      "output": "metricsResponse"
+    },
+    {
+      "id": "parse",
+      "block": "JsonParser",
+      "input": "${metricsResponse.body}",
+      "output": {
+        "parsed": "metrics"
+      }
+    },
+    {
+      "id": "checkThreshold",
+      "block": "Loop",
+      "config": {
+        "target": "measure",
+        "maxIterations": 5,
+        "condition": {
+          "path": "metrics.score",
+          "operator": "lt",
+          "value": 0.8
+        }
+      }
+    }
+  ],
+  "assertions": {
+    "metrics.score": { "gte": 0.8 }
+  }
+}
+```
+
+Keeps checking until the score reaches at least 0.8, or gives up after 5 attempts.
+
+### Multi-Step Loop
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "fetch",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${API_URL}/data?page=${pageNum}",
+        "method": "GET"
+      },
+      "output": "pageResponse"
+    },
+    {
+      "id": "parse",
+      "block": "JsonParser",
+      "input": "${pageResponse.body}",
+      "output": {
+        "parsed": "page"
+      }
+    },
+    {
+      "id": "process",
+      "block": "ValidateContent",
+      "input": {
+        "from": "page.data",
+        "as": "text"
+      },
+      "config": {
+        "contains": "expected"
+      },
+      "output": "validation"
+    },
+    {
+      "id": "loop",
+      "block": "Loop",
+      "config": {
+        "target": "fetch",
+        "maxIterations": 5
+      }
+    }
+  ]
+}
+```
+
+## Loop Counter
+
+The pipeline tracks loop iterations in context:
+
+```javascript
+_loopCount:targetBlockId = 0, 1, 2, ...
+```
+
+This counter is per-target, so multiple loops can coexist.
+
+## Common Patterns
+
+### Polling Until Ready
+
+```json
+{
+  "name": "Job Polling Test",
+  "context": {
+    "API_URL": "${env.API_URL}",
+    "JOB_ID": "job-123"
+  },
+  "tests": [{
+    "id": "poll-until-complete",
+    "pipeline": [
+      {
+        "id": "checkJobStatus",
+        "block": "HttpRequest",
+        "input": {
+          "url": "${API_URL}/jobs/${JOB_ID}",
+          "method": "GET"
+        },
+        "output": "jobResponse"
+      },
+      {
+        "id": "parseStatus",
+        "block": "JsonParser",
+        "input": "${jobResponse.body}",
+        "output": {
+          "parsed": "job"
+        }
+      },
+      {
+        "id": "pollLoop",
+        "block": "Loop",
+        "config": {
+          "target": "checkJobStatus",
+          "maxIterations": 20
+        }
+      }
+    ],
+    "assertions": {
+      "job.status": "completed"
+    }
+  }]
+}
+```
+
+**How it works:**
+1. Checks job status
+2. Parses response
+3. Loops back if not complete
+4. Stops after 20 attempts or when complete
+
+### Retry Failed Requests
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "sendRequest",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${API_URL}/unstable",
+        "method": "POST",
+        "body": { "data": "test" }
+      },
+      "output": "response"
+    },
+    {
+      "id": "retryLoop",
+      "block": "Loop",
+      "config": {
+        "target": "sendRequest",
+        "maxIterations": 3
+      }
+    }
+  ],
+  "assertions": {
+    "response.status": { "lt": 400 }
+  }
+}
+```
+
+### Agent Iteration Testing
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "callAgent",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${AI_URL}/agent",
+        "method": "POST",
+        "body": {
+          "task": "Find and process data"
+        }
+      },
+      "output": "agentResponse"
+    },
+    {
+      "id": "parseResponse",
+      "block": "StreamParser",
+      "input": "${agentResponse.body}",
+      "config": {
+        "format": "sse-openai"
+      },
+      "output": {
+        "text": "agentMessage",
+        "toolCalls": "tools"
+      }
+    },
+    {
+      "id": "validateTools",
+      "block": "ValidateTools",
+      "input": {
+        "from": "tools",
+        "as": "toolCalls"
+      },
+      "config": {
+        "expected": ["search", "process"]
+      },
+      "output": "toolValidation"
+    },
+    {
+      "id": "iterateLoop",
+      "block": "Loop",
+      "config": {
+        "target": "callAgent",
+        "maxIterations": 5
+      }
+    }
+  ],
+  "assertions": {
+    "toolValidation.passed": true
+  }
+}
+```
+
+## Loop Limits
+
+**Default limit:** 10 iterations per loop target
+
+**Maximum safe limit:** 100 iterations
+
+**Why limits exist:**
+- Prevent infinite loops
+- Avoid test timeouts
+- Protect against configuration errors
+
+**Override the limit:**
+
+```json
+{
+  "config": {
+    "target": "myBlock",
+    "maxIterations": 50
+  }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Set Reasonable maxIterations">
+    Don't rely on defaults. Set appropriate limits:
+
+    ```json
+    {
+      "config": {
+        "target": "checkStatus",
+        "maxIterations": 30  // 30 seconds if polling every second
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use Loop for Polling">
+    Perfect for checking async job status:
+
+    ```json
+    {
+      "pipeline": [
+        { "id": "check", "block": "HttpRequest", ... },
+        { "id": "parse", "block": "JsonParser", ... },
+        {
+          "block": "Loop",
+          "config": { "target": "check", "maxIterations": 20 }
+        }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Combine with Assertions">
+    Use assertions to verify final state after looping:
+
+    ```json
+    {
+      "pipeline": [
+        { "id": "poll", "block": "HttpRequest", ... },
+        { "block": "Loop", "config": { "target": "poll" } }
+      ],
+      "assertions": {
+        "response.data.status": "ready"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Don't Nest Loops">
+    Avoid loops within loops - use separate tests instead:
+
+    ```json
+    // Bad - nested loops (confusing)
+    {
+      "pipeline": [
+        { "id": "outer", ... },
+        { "id": "inner", ... },
+        { "block": "Loop", "config": { "target": "inner" } },
+        { "block": "Loop", "config": { "target": "outer" } }
+      ]
+    }
+
+    // Good - separate tests
+    {
+      "tests": [
+        { "id": "test1", "pipeline": [ ... ] },
+        { "id": "test2", "pipeline": [ ... ] }
+      ]
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Limitations
+
+**Current limitations:**
+
+1. **Single target** - Can only loop to one block at a time
+2. **Forward loops not allowed** - Can only loop backwards to previous blocks
+3. **No loop nesting** - Cannot reliably nest loops within loops
+
+**Best practices:**
+
+- Use conditional logic to control loop execution
+- Set reasonable maxIterations to prevent timeouts
+- Use assertions to verify final state after looping
+- For complex scenarios, split into separate tests
+
+## Full Example
+
+```json
+{
+  "name": "Async Job Polling Test",
+  "context": {
+    "API_URL": "${env.API_URL}",
+    "API_KEY": "${env.API_KEY}"
+  },
+  "tests": [{
+    "id": "test-job-completion",
+    "pipeline": [
+      {
+        "id": "startJob",
+        "block": "HttpRequest",
+        "input": {
+          "url": "${API_URL}/jobs",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer ${API_KEY}"
+          },
+          "body": {
+            "task": "process_data"
+          }
+        },
+        "output": "startResponse"
+      },
+      {
+        "id": "parseJobId",
+        "block": "JsonParser",
+        "input": "${startResponse.body}",
+        "output": {
+          "parsed": "jobInfo"
+        }
+      },
+      {
+        "id": "pollStatus",
+        "block": "HttpRequest",
+        "input": {
+          "url": "${API_URL}/jobs/${jobInfo.id}",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer ${API_KEY}"
+          }
+        },
+        "output": "statusResponse"
+      },
+      {
+        "id": "parseStatus",
+        "block": "JsonParser",
+        "input": "${statusResponse.body}",
+        "output": {
+          "parsed": "status"
+        }
+      },
+      {
+        "id": "waitLoop",
+        "block": "Loop",
+        "config": {
+          "target": "pollStatus",
+          "maxIterations": 30
+        }
+      }
+    ],
+    "assertions": {
+      "startResponse.status": 201,
+      "jobInfo.id": { "matches": ".+" },
+      "status.state": "completed",
+      "status.result": { "matches": ".+" }
+    }
+  }]
+}
+```
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Add Delays Between Iterations">
+    Currently, Loop doesn't have built-in delays. For polling, consider test structure or external delays.
+  </Accordion>
+
+  <Accordion title="Monitor Loop Counter">
+    Check context for loop count if needed:
+
+    ```javascript
+    context._loopCount:targetBlock = 5
+    ```
+  </Accordion>
+
+  <Accordion title="Use for Flaky Tests">
+    Retry flaky operations automatically:
+
+    ```json
+    {
+      "pipeline": [
+        { "id": "flakyOp", "block": "HttpRequest", ... },
+        {
+          "block": "Loop",
+          "config": { "target": "flakyOp", "maxIterations": 3 }
+        }
+      ]
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## When to Use
+
+**Use Loop when:**
+- Polling for async operation completion
+- Retrying failed requests
+- Testing iterative agent behaviors
+- Checking status until ready
+
+**Don't use when:**
+- Simple sequential flow is sufficient
+- Need complex conditional logic (use separate tests)
+- Testing requires precise timing control
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Pipelines"
+    icon="diagram-project"
+    href="/concepts/pipelines"
+  >
+    Learn about pipeline execution
+  </Card>
+  <Card
+    title="Data Flow"
+    icon="arrows-repeat"
+    href="/concepts/data-flow"
+  >
+    Understand data passing between blocks
+  </Card>
+</CardGroup>

@@ -15,7 +15,7 @@ describe('Loop', () => {
 
     test('should have correct outputs', () => {
       const { outputs } = Loop;
-      assert.deepStrictEqual(outputs.produces, ['_loopTo', '_maxLoops']);
+      assert.deepStrictEqual(outputs.produces, ['_loopTo', '_maxLoops', '_shouldLoop']);
     });
   });
 
@@ -131,6 +131,126 @@ describe('Loop', () => {
 
       assert.strictEqual(result._loopTo, 'block1');
       assert.strictEqual(result._maxLoops, -5);
+    });
+  });
+
+  describe('conditional looping', () => {
+    test('should loop when condition evaluates to true', () => {
+      loop = new Loop({
+        target: 'retry',
+        maxIterations: 5,
+        condition: {
+          path: 'response.status',
+          operator: 'notEquals',
+          value: 200
+        }
+      });
+
+      const inputs = {
+        response: { status: 500 }
+      };
+
+      const result = loop.process(inputs);
+
+      assert.strictEqual(result._shouldLoop, true);
+      assert.strictEqual(result._loopTo, 'retry');
+      assert.strictEqual(result._maxLoops, 5);
+      assert.strictEqual(result.response.status, 500);
+    });
+
+    test('should not loop when condition evaluates to false', () => {
+      loop = new Loop({
+        target: 'retry',
+        maxIterations: 5,
+        condition: {
+          path: 'response.status',
+          operator: 'notEquals',
+          value: 200
+        }
+      });
+
+      const inputs = {
+        response: { status: 200 }
+      };
+
+      const result = loop.process(inputs);
+
+      assert.strictEqual(result._shouldLoop, false);
+      assert.strictEqual(result._loopTo, undefined);
+      assert.strictEqual(result._maxLoops, undefined);
+      assert.strictEqual(result.response.status, 200);
+    });
+
+    test('should loop unconditionally when no condition provided', () => {
+      loop = new Loop({
+        target: 'block1',
+        maxIterations: 3
+      });
+
+      const result = loop.process({ data: 'test' });
+
+      assert.strictEqual(result._shouldLoop, true);
+      assert.strictEqual(result._loopTo, 'block1');
+      assert.strictEqual(result._maxLoops, 3);
+    });
+
+    test('should work with gt operator for threshold checking', () => {
+      loop = new Loop({
+        target: 'measure',
+        maxIterations: 10,
+        condition: {
+          path: 'score',
+          operator: 'lt',
+          value: 0.8
+        }
+      });
+
+      const result = loop.process({ score: 0.5 });
+
+      assert.strictEqual(result._shouldLoop, true);
+      assert.strictEqual(result._loopTo, 'measure');
+    });
+
+    test('should work with complex nested paths', () => {
+      loop = new Loop({
+        target: 'check',
+        maxIterations: 5,
+        condition: {
+          path: 'job.status',
+          operator: 'notEquals',
+          value: 'completed'
+        }
+      });
+
+      const result = loop.process({
+        job: { status: 'pending', progress: 50 }
+      });
+
+      assert.strictEqual(result._shouldLoop, true);
+      assert.strictEqual(result.job.status, 'pending');
+    });
+
+    test('should pass through all data when not looping', () => {
+      loop = new Loop({
+        target: 'start',
+        condition: {
+          path: 'done',
+          operator: 'isFalse'
+        }
+      });
+
+      const inputs = {
+        done: true,
+        data: { value: 42 },
+        nested: { deep: { value: 'test' } }
+      };
+
+      const result = loop.process(inputs);
+
+      assert.strictEqual(result._shouldLoop, false);
+      assert.strictEqual(result.done, true);
+      assert.deepStrictEqual(result.data, { value: 42 });
+      assert.deepStrictEqual(result.nested, { deep: { value: 'test' } });
     });
   });
 

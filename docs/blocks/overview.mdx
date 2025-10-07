@@ -1,0 +1,233 @@
+---
+title: 'Blocks Overview'
+description: 'All available building blocks for your test pipelines'
+icon: 'cubes'
+---
+
+## What are Blocks?
+
+Blocks are the building pieces of test pipelines. Each block does one thing well and can be combined with other blocks to create complex test scenarios.
+
+## Available Blocks
+
+<CardGroup cols={2}>
+  <Card
+    title="HttpRequest"
+    icon="globe"
+    href="/blocks/http-request"
+  >
+    Make HTTP requests to APIs with full control over method, headers, and body
+  </Card>
+
+  <Card
+    title="JsonParser"
+    icon="code"
+    href="/blocks/json-parser"
+  >
+    Parse JSON strings into structured data
+  </Card>
+
+  <Card
+    title="StreamParser"
+    icon="wave-pulse"
+    href="/blocks/stream-parser"
+  >
+    Parse streaming SSE responses from OpenAI, Vercel AI SDK, and custom formats
+  </Card>
+
+  <Card
+    title="ValidateContent"
+    icon="check"
+    href="/blocks/validate-content"
+  >
+    Validate text content with contains, regex, length checks, and more
+  </Card>
+
+  <Card
+    title="ValidateTools"
+    icon="wrench"
+    href="/blocks/validate-tools"
+  >
+    Validate AI tool calls, order, arguments, and constraints
+  </Card>
+
+  <Card
+    title="LLMJudge"
+    icon="gavel"
+    href="/blocks/llm-judge"
+  >
+    Use AI to evaluate responses semantically with configurable criteria
+  </Card>
+
+  <Card
+    title="Loop"
+    icon="rotate"
+    href="/blocks/loop"
+  >
+    Loop back to previous blocks with max iteration control
+  </Card>
+
+  <Card
+    title="MockData"
+    icon="box"
+    href="/blocks/mock-data"
+  >
+    Return mock data for testing without external dependencies
+  </Card>
+</CardGroup>
+
+## Block Categories
+
+### HTTP & Data Fetching
+- **HttpRequest**: Make API calls
+- **MockData**: Test without external dependencies
+
+### Parsing & Transformation
+- **JsonParser**: Parse JSON responses
+- **StreamParser**: Handle streaming data
+
+### Validation
+- **ValidateContent**: Text and content validation
+- **ValidateTools**: AI tool call validation
+- **LLMJudge**: Semantic validation with AI
+
+### Control Flow
+- **Loop**: Retry logic and iterations
+
+## Common Patterns
+
+### API Testing
+
+```json
+{
+  "pipeline": [
+    { "block": "HttpRequest" },   // Call API
+    { "block": "JsonParser" },    // Parse response
+    { "block": "ValidateContent" } // Validate content
+  ]
+}
+```
+
+### AI Agent Testing
+
+```json
+{
+  "pipeline": [
+    { "block": "HttpRequest" },    // Call AI API
+    { "block": "StreamParser" },   // Parse streaming response
+    { "block": "ValidateTools" },  // Check tool calls
+    { "block": "LLMJudge" }        // Semantic validation
+  ]
+}
+```
+
+### Retry Logic
+
+```json
+{
+  "pipeline": [
+    { "id": "request", "block": "HttpRequest" },
+    { "block": "ValidateContent" },
+    {
+      "block": "Loop",
+      "config": {
+        "target": "request",
+        "maxIterations": 3
+      }
+    }
+  ]
+}
+```
+
+## Creating Custom Blocks
+
+Don't see what you need? Create custom blocks:
+
+```javascript
+import { Block } from '@blade47/semantic-test';
+
+export class MyCustomBlock extends Block {
+  static get inputs() {
+    return {
+      required: ['data'],
+      optional: ['config']
+    };
+  }
+
+  static get outputs() {
+    return {
+      produces: ['result']
+    };
+  }
+
+  async process(inputs, context) {
+    // Your logic here
+    return { result: processedData };
+  }
+}
+```
+
+<Card
+  title="Learn More About Custom Blocks"
+  icon="code"
+  href="/advanced/custom-blocks"
+>
+  Complete guide to creating and registering custom blocks
+</Card>
+
+## Block Composition
+
+Blocks are designed to be composable. Here are common combinations:
+
+<AccordionGroup>
+  <Accordion title="Full API Test">
+    ```json
+    HttpRequest → JsonParser → ValidateContent → Assertions
+    ```
+  </Accordion>
+
+  <Accordion title="AI Response Validation">
+    ```json
+    HttpRequest → StreamParser → ValidateTools → LLMJudge → Assertions
+    ```
+  </Accordion>
+
+  <Accordion title="Retry with Validation">
+    ```json
+    HttpRequest → ValidateContent → Loop (if failed) → Assertions
+    ```
+  </Accordion>
+
+  <Accordion title="Mock Testing">
+    ```json
+    MockData → ValidateContent → LLMJudge → Assertions
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card
+    title="Explore Each Block"
+    icon="book"
+  >
+    Click on any block above to see detailed documentation
+  </Card>
+
+  <Card
+    title="View Examples"
+    icon="code"
+    href="/examples/basic-api-test"
+  >
+    See blocks in action with real examples
+  </Card>
+
+  <Card
+    title="Create Custom Blocks"
+    icon="hammer"
+    href="/advanced/custom-blocks"
+  >
+    Extend SemanticTest with your own blocks
+  </Card>
+</CardGroup>

@@ -1,0 +1,232 @@
+---
+title: 'Quickstart'
+description: 'Get started with SemanticTest in 30 seconds'
+icon: 'rocket'
+---
+
+## Install
+
+<CodeGroup>
+
+```bash npm
+npm install @blade47/semantic-test
+```
+
+```bash pnpm
+pnpm add @blade47/semantic-test
+```
+
+```bash yarn
+yarn add @blade47/semantic-test
+```
+
+</CodeGroup>
+
+## Create Your First Test
+
+Create a file called `test.json`:
+
+```json test.json
+{
+  "name": "My First Test",
+  "version": "1.0.0",
+  "tests": [
+    {
+      "id": "simple-test",
+      "name": "Simple API Test",
+      "pipeline": [
+        {
+          "id": "request",
+          "block": "HttpRequest",
+          "input": {
+            "url": "https://jsonplaceholder.typicode.com/users/1",
+            "method": "GET"
+          },
+          "output": "response"
+        },
+        {
+          "id": "parse",
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": "user"
+        }
+      ],
+      "assertions": {
+        "response.status": 200,
+        "user.parsed.id": 1,
+        "user.parsed.name": { "contains": "Leanne" }
+      }
+    }
+  ]
+}
+```
+
+## Run Your Test
+
+<CodeGroup>
+
+```bash CLI
+npx semtest test.json
+```
+
+```javascript Programmatic
+import { PipelineBuilder } from '@blade47/semantic-test';
+import fs from 'fs/promises';
+
+const testDef = JSON.parse(await fs.readFile('test.json', 'utf-8'));
+const pipeline = PipelineBuilder.fromJSON(testDef);
+
+const result = await pipeline.execute();
+console.log(result.success ? '✅ Passed' : '❌ Failed');
+```
+
+</CodeGroup>
+
+You should see output like:
+
+```
+✅ My First Test
+  ✅ simple-test: Simple API Test (245ms)
+     ✅ response.status = 200
+     ✅ user.parsed.id = 1
+     ✅ user.parsed.name contains "Leanne"
+
+1 test passed, 0 failed
+```
+
+## Add Semantic Validation
+
+Now let's add AI-powered semantic validation. First, set your OpenAI API key:
+
+```bash .env
+OPENAI_API_KEY=sk-proj-your-key-here
+```
+
+<Note>
+  The LLM Judge block is **optional**. You can use all other blocks without an API key!
+</Note>
+
+Update your test to include semantic validation:
+
+```json test.json
+{
+  "name": "Semantic Test",
+  "version": "1.0.0",
+  "tests": [
+    {
+      "id": "semantic-test",
+      "name": "Test with AI Judge",
+      "pipeline": [
+        {
+          "id": "request",
+          "block": "HttpRequest",
+          "input": {
+            "url": "https://jsonplaceholder.typicode.com/users/1",
+            "method": "GET"
+          },
+          "output": "response"
+        },
+        {
+          "id": "parse",
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": "user"
+        },
+        {
+          "id": "judge",
+          "block": "LLMJudge",
+          "input": {
+            "text": "${user.parsed}",
+            "expected": {
+              "expectedBehavior": "Should return complete user information including name, email, and address"
+            }
+          },
+          "config": {
+            "model": "gpt-4o-mini"
+          },
+          "output": "validation"
+        }
+      ],
+      "assertions": {
+        "response.status": 200,
+        "validation.score": { "gt": 0.7 }
+      }
+    }
+  ]
+}
+```
+
+Run it again:
+
+```bash
+npx semtest test.json
+```
+
+Now you'll see AI-powered validation:
+
+```
+✅ Semantic Test
+  ✅ semantic-test: Test with AI Judge (1.2s)
+     ✅ response.status = 200
+     ✅ validation.score = 0.95 (>= 0.7)
+     💡 Judge reasoning: "The response contains complete user information with all required fields including name, email, and a detailed address object."
+
+1 test passed, 0 failed
+```
+
+## What's Next?
+
+<CardGroup cols={2}>
+  <Card
+    title="Core Concepts"
+    icon="book"
+    href="/concepts/pipelines"
+  >
+    Learn how pipelines and data flow work
+  </Card>
+  <Card
+    title="Browse Blocks"
+    icon="cube"
+    href="/blocks/overview"
+  >
+    Explore all 8 available blocks
+  </Card>
+  <Card
+    title="AI Testing Guide"
+    icon="robot"
+    href="/ai-testing/overview"
+  >
+    Learn how to test AI systems effectively
+  </Card>
+  <Card
+    title="View Examples"
+    icon="code"
+    href="/examples/basic-api-test"
+  >
+    Explore real-world test examples
+  </Card>
+</CardGroup>
+
+## CLI Options
+
+```bash
+# Run single test
+npx semtest test.json
+
+# Run multiple tests
+npx semtest tests/*.json
+
+# Generate HTML report
+npx semtest test.json --html
+
+# Custom output file
+npx semtest test.json --html --output report.html
+
+# Debug mode
+export LOG_LEVEL=DEBUG
+npx semtest test.json
+```
+
+## Try the Playground
+
+Want to experiment without installing anything? Try our [interactive playground](https://semantic-test.vercel.app) where you can run tests directly in your browser.

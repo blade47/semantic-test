@@ -1,0 +1,512 @@
+---
+title: 'Error Handling'
+description: 'Patterns for handling errors and failures gracefully'
+icon: 'triangle-exclamation'
+---
+
+## Overview
+
+This example demonstrates various error handling patterns in SemanticTest, including:
+- Detecting validation failures
+- Handling API errors
+- Retry logic with Loop blocks
+- Graceful degradation
+
+## Testing Error Scenarios
+
+```json test.json
+{
+  "name": "Error Handling Examples",
+  "version": "1.0.0",
+  "tests": [
+    {
+      "id": "validation-failure",
+      "name": "Detect Validation Failures",
+      "pipeline": [
+        {
+          "id": "fetch-data",
+          "block": "HttpRequest",
+          "input": {
+            "url": "https://jsonplaceholder.typicode.com/users/1",
+            "method": "GET"
+          },
+          "output": "response"
+        },
+        {
+          "id": "parse-json",
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": "parsed"
+        },
+        {
+          "id": "validate-content",
+          "block": "ValidateContent",
+          "input": {
+            "from": "parsed.parsed.name",
+            "as": "text"
+          },
+          "config": {
+            "contains": "Leanne"
+          },
+          "output": "validation"
+        }
+      ],
+      "assertions": {
+        "response.status": 200,
+        "validation.passed": true,
+        "validation.score": { "gte": 1.0 }
+      }
+    },
+    {
+      "id": "missing-data",
+      "name": "Handle Missing Data",
+      "pipeline": [
+        {
+          "id": "mock-incomplete-data",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "user": {
+                "id": 1,
+                "name": "John Doe"
+              }
+            }
+          },
+          "output": "data"
+        },
+        {
+          "id": "validate-email",
+          "block": "ValidateContent",
+          "input": {
+            "from": "data.user.email",
+            "as": "text"
+          },
+          "config": {
+            "minLength": 5
+          },
+          "output": "emailCheck"
+        }
+      ],
+      "assertions": {
+        "data.user.id": 1,
+        "emailCheck.passed": false,
+        "emailCheck.failures": { "contains": "text" }
+      }
+    },
+    {
+      "id": "retry-on-failure",
+      "name": "Retry Failed Requests",
+      "pipeline": [
+        {
+          "id": "attempt-request",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "status": 200,
+              "attempts": 1
+            }
+          },
+          "output": "result"
+        }
+      ],
+      "assertions": {
+        "result.status": 200
+      }
+    }
+  ]
+}
+```
+
+## Pattern 1: Validate Then Assert
+
+Always validate data before making assertions:
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "output": "response"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": "parsed"
+    },
+    {
+      "block": "ValidateContent",
+      "input": {
+        "from": "parsed.data",
+        "as": "text"
+      },
+      "config": {
+        "minLength": 1,
+        "isNotEmpty": true
+      },
+      "output": "validation"
+    }
+  ],
+  "assertions": {
+    "response.status": 200,
+    "validation.passed": true,  // Check validation passed
+    "parsed.data.id": { "gt": 0 }
+  }
+}
+```
+
+## Pattern 2: Graceful Degradation
+
+Test that your system handles missing data gracefully:
+
+```json
+{
+  "tests": [
+    {
+      "id": "missing-optional-field",
+      "pipeline": [
+        {
+          "block": "MockData",
+          "config": {
+            "data": {
+              "name": "John",
+              "email": null  // Missing optional field
+            }
+          },
+          "output": "user"
+        }
+      ],
+      "assertions": {
+        "user.name": { "isNotEmpty": true },
+        "user.email": { "isNull": true }  // Accept null gracefully
+      }
+    }
+  ]
+}
+```
+
+## Pattern 3: Retry Logic
+
+Retry failed operations with exponential backoff:
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "api-call",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${API_URL}/flaky-endpoint",
+        "method": "GET"
+      },
+      "output": "response"
+    },
+    {
+      "id": "retry-if-failed",
+      "block": "Loop",
+      "config": {
+        "target": "api-call",
+        "maxIterations": 3,
+        "condition": {
+          "path": "response.status",
+          "operator": "notEquals",
+          "value": 200
+        }
+      }
+    }
+  ],
+  "assertions": {
+    "response.status": 200
+  }
+}
+```
+
+This will retry the API call up to 3 times if the status is not 200.
+
+## Pattern 4: Expected Failures
+
+Test that your system correctly rejects invalid input:
+
+```json
+{
+  "tests": [
+    {
+      "id": "reject-invalid-email",
+      "name": "Should Reject Invalid Email",
+      "pipeline": [
+        {
+          "block": "MockData",
+          "config": {
+            "data": {
+              "email": "not-an-email"
+            }
+          },
+          "output": "input"
+        },
+        {
+          "block": "ValidateContent",
+          "input": {
+            "from": "input.email",
+            "as": "text"
+          },
+          "config": {
+            "matches": ".*@.*\\..*"
+          },
+          "output": "validation"
+        }
+      ],
+      "assertions": {
+        "validation.passed": false,  // EXPECT failure
+        "validation.failures": { "isNotEmpty": true }
+      }
+    }
+  ]
+}
+```
+
+## Pattern 5: Multiple Validation Layers
+
+Implement defense in depth:
+
+```json
+{
+  "pipeline": [
+    // Layer 1: Structural validation
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": "parsed"
+    },
+    // Layer 2: Content validation
+    {
+      "block": "ValidateContent",
+      "input": {
+        "from": "parsed.data.name",
+        "as": "text"
+      },
+      "config": {
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "output": "contentCheck"
+    },
+    // Layer 3: Tool validation (for AI responses)
+    {
+      "block": "ValidateTools",
+      "input": {
+        "from": "parsed.data.toolCalls",
+        "as": "toolCalls"
+      },
+      "config": {
+        "expected": ["required_tool"],
+        "forbidden": ["dangerous_tool"]
+      },
+      "output": "toolCheck"
+    },
+    // Layer 4: Semantic validation
+    {
+      "block": "LLMJudge",
+      "input": {
+        "text": "${parsed.data.message}",
+        "expected": {
+          "expectedBehavior": "Professional and helpful response"
+        }
+      },
+      "output": "semanticCheck"
+    }
+  ],
+  "assertions": {
+    "contentCheck.passed": true,
+    "toolCheck.passed": true,
+    "semanticCheck.score": { "gte": 0.7 }
+  }
+}
+```
+
+## Pattern 6: Error Messages
+
+Validate error messages are helpful:
+
+```json
+{
+  "tests": [
+    {
+      "id": "helpful-error",
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "${API_URL}/invalid-endpoint",
+            "method": "GET"
+          },
+          "output": "errorResponse"
+        },
+        {
+          "block": "JsonParser",
+          "input": "${errorResponse.body}",
+          "output": "error"
+        },
+        {
+          "block": "ValidateContent",
+          "input": {
+            "from": "error.parsed.message",
+            "as": "text"
+          },
+          "config": {
+            "minLength": 10,
+            "notContains": "undefined"
+          },
+          "output": "errorCheck"
+        }
+      ],
+      "assertions": {
+        "errorResponse.status": { "gte": 400, "lt": 500 },
+        "error.parsed.message": { "isNotEmpty": true },
+        "errorCheck.passed": true
+      }
+    }
+  ]
+}
+```
+
+## Pattern 7: Timeout Handling
+
+Test timeout scenarios:
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${API_URL}/slow-endpoint",
+        "method": "GET",
+        "timeout": 5000  // 5 second timeout
+      },
+      "output": "response"
+    }
+  ],
+  "assertions": {
+    "response.status": { "lt": 500 }  // Should not timeout with 500 error
+  }
+}
+```
+
+## Real-World Example
+
+Complete error handling for API integration:
+
+```json
+{
+  "name": "Robust API Test",
+  "tests": [
+    {
+      "id": "api-with-error-handling",
+      "pipeline": [
+        // Attempt API call with retry
+        {
+          "id": "api-call",
+          "block": "HttpRequest",
+          "input": {
+            "url": "${API_URL}/users",
+            "method": "GET",
+            "timeout": 10000
+          },
+          "output": "response"
+        },
+        {
+          "block": "Loop",
+          "config": {
+            "target": "api-call",
+            "maxIterations": 3,
+            "condition": {
+              "path": "response.status",
+              "operator": "gte",
+              "value": 500
+            }
+          }
+        },
+        // Parse response
+        {
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": "data"
+        },
+        // Validate structure
+        {
+          "block": "ValidateContent",
+          "input": {
+            "from": "data.parsed",
+            "as": "text"
+          },
+          "config": {
+            "minLength": 2
+          },
+          "output": "validation"
+        }
+      ],
+      "assertions": {
+        "response.status": { "gte": 200, "lt": 400 },
+        "data.error": { "isUndefined": true },
+        "validation.passed": true
+      }
+    }
+  ]
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Always Validate Before Asserting">
+    Use ValidateContent or ValidateTools before making assertions on data structure.
+  </Accordion>
+
+  <Accordion title="2. Test Both Success and Failure">
+    Write tests for both happy paths and error scenarios.
+  </Accordion>
+
+  <Accordion title="3. Use Specific Error Assertions">
+    Assert on specific error codes, not just "something failed".
+  </Accordion>
+
+  <Accordion title="4. Implement Retry Logic">
+    Use Loop blocks to retry flaky operations automatically.
+  </Accordion>
+
+  <Accordion title="5. Validate Error Messages">
+    Ensure error messages are helpful and don't leak sensitive info.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Loop Block"
+    icon="rotate"
+    href="/blocks/loop"
+  >
+    Learn about retry logic with Loop
+  </Card>
+  <Card
+    title="ValidateContent"
+    icon="check"
+    href="/blocks/validate-content"
+  >
+    Content validation reference
+  </Card>
+  <Card
+    title="Assertions"
+    icon="check-double"
+    href="/concepts/assertions"
+  >
+    All assertion operators
+  </Card>
+  <Card
+    title="Calendar Agent"
+    icon="calendar"
+    href="/examples/calendar-agent"
+  >
+    Complex agent testing example
+  </Card>
+</CardGroup>

@@ -1,0 +1,232 @@
+{
+  "name": "Conditions System Example",
+  "context": {
+    "API_URL": "https://jsonplaceholder.typicode.com"
+  },
+  "tests": [
+    {
+      "id": "test-all-assertion-operators",
+      "name": "Test All Assertion Operators",
+      "pipeline": [
+        {
+          "block": "MockData",
+          "config": {
+            "data": {
+              "status": 200,
+              "count": 5,
+              "message": "Hello World",
+              "email": "test@example.com",
+              "roles": ["admin", "user"],
+              "items": [1, 2, 3],
+              "flag": true,
+              "nullValue": null,
+              "emptyString": "",
+              "emptyArray": []
+            }
+          },
+          "output": "testData"
+        }
+      ],
+      "assertions": {
+        "testData.status": 200,
+        "testData.status": { "equals": 200 },
+        "testData.status": { "notEquals": 404 },
+        "testData.status": { "gt": 199 },
+        "testData.status": { "gte": 200 },
+        "testData.status": { "lt": 300 },
+        "testData.status": { "lte": 200 },
+        "testData.count": { "gt": 0, "lt": 10 },
+        "testData.message": { "contains": "World" },
+        "testData.message": { "notContains": "Goodbye" },
+        "testData.message": { "minLength": 5 },
+        "testData.message": { "maxLength": 50 },
+        "testData.email": { "matches": ".*@.*\\..*" },
+        "testData.roles": { "contains": "admin" },
+        "testData.items": { "minLength": 1, "maxLength": 10 },
+        "testData.flag": { "isTrue": true },
+        "testData.nullValue": { "isNull": true },
+        "testData.emptyString": { "isEmpty": true },
+        "testData.emptyArray": { "isEmpty": true },
+        "testData.roles": { "isNotEmpty": true }
+      }
+    },
+    {
+      "id": "test-conditional-loop-retry",
+      "name": "Conditional Loop - Retry Until Success",
+      "pipeline": [
+        {
+          "id": "attempt",
+          "block": "HttpRequest",
+          "input": {
+            "url": "${API_URL}/users/1",
+            "method": "GET"
+          },
+          "output": "response"
+        },
+        {
+          "block": "Loop",
+          "config": {
+            "target": "attempt",
+            "maxIterations": 3,
+            "condition": {
+              "path": "response.status",
+              "operator": "notEquals",
+              "value": 200
+            }
+          }
+        }
+      ],
+      "assertions": {
+        "response.status": 200
+      }
+    },
+    {
+      "id": "test-conditional-loop-polling",
+      "name": "Conditional Loop - Poll Until Ready",
+      "pipeline": [
+        {
+          "id": "checkStatus",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "status": "completed",
+              "progress": 100
+            }
+          },
+          "output": "job"
+        },
+        {
+          "block": "Loop",
+          "config": {
+            "target": "checkStatus",
+            "maxIterations": 10,
+            "condition": {
+              "path": "job.status",
+              "operator": "notEquals",
+              "value": "completed"
+            }
+          }
+        }
+      ],
+      "assertions": {
+        "job.status": "completed",
+        "job.progress": { "gte": 100 }
+      }
+    },
+    {
+      "id": "test-conditional-loop-threshold",
+      "name": "Conditional Loop - Wait for Threshold",
+      "pipeline": [
+        {
+          "id": "measure",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "score": 0.85,
+              "confidence": "high"
+            }
+          },
+          "output": "metrics"
+        },
+        {
+          "block": "Loop",
+          "config": {
+            "target": "measure",
+            "maxIterations": 5,
+            "condition": {
+              "path": "metrics.score",
+              "operator": "lt",
+              "value": 0.8
+            }
+          }
+        }
+      ],
+      "assertions": {
+        "metrics.score": { "gte": 0.8 },
+        "metrics.confidence": { "contains": "high" }
+      }
+    },
+    {
+      "id": "test-unconditional-loop",
+      "name": "Unconditional Loop - Backward Compatible",
+      "pipeline": [
+        {
+          "id": "increment",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "counter": 3
+            }
+          },
+          "output": "data"
+        },
+        {
+          "block": "Loop",
+          "config": {
+            "target": "increment",
+            "maxIterations": 2
+          }
+        }
+      ],
+      "assertions": {
+        "data.counter": 3
+      }
+    },
+    {
+      "id": "test-complex-assertions",
+      "name": "Complex Multi-Operator Assertions",
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "${API_URL}/users/1",
+            "method": "GET"
+          },
+          "output": "response"
+        },
+        {
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": {
+            "parsed": "user"
+          }
+        }
+      ],
+      "assertions": {
+        "response.status": { "gte": 200, "lt": 300 },
+        "user.id": { "gt": 0 },
+        "user.name": { "minLength": 1, "maxLength": 100 },
+        "user.email": { "matches": ".*@.*", "contains": "@" },
+        "user.address.city": { "isNotEmpty": true }
+      }
+    },
+    {
+      "id": "test-type-checks",
+      "name": "Type and Existence Checks",
+      "pipeline": [
+        {
+          "block": "MockData",
+          "config": {
+            "data": {
+              "present": "value",
+              "absent": null,
+              "enabled": true,
+              "disabled": false,
+              "empty": "",
+              "filled": "content"
+            }
+          },
+          "output": "data"
+        }
+      ],
+      "assertions": {
+        "data.present": { "isDefined": true, "isNotNull": true },
+        "data.absent": { "isNull": true },
+        "data.enabled": { "isTrue": true },
+        "data.disabled": { "isFalse": true },
+        "data.empty": { "isEmpty": true },
+        "data.filled": { "isNotEmpty": true }
+      }
+    }
+  ]
+}

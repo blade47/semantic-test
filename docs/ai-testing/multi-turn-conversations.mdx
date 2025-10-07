@@ -1,0 +1,913 @@
+---
+title: 'Multi-Turn Conversations'
+description: 'Test conversational AI flows with context and memory'
+icon: 'comments'
+---
+
+## What are Multi-Turn Conversations?
+
+**Multi-turn conversations** are interactions where the AI remembers previous messages and maintains context:
+
+```
+User: "I need a laptop"
+AI: "What's your budget?"
+
+User: "$1000"                          ← References "laptop" and "budget" from before
+AI: "Here are laptops under $1000"     ← Remembers user needs laptop for ~$1000
+```
+
+The AI must:
+- ✅ Remember previous messages
+- ✅ Understand references ("it", "that", "the one you mentioned")
+- ✅ Maintain conversation state (user's budget, preferences, etc.)
+- ✅ Stay contextually relevant
+
+## Why Test Multi-Turn Conversations?
+
+Single-turn testing misses critical issues:
+
+### Context Loss
+```
+Turn 1: "Find flights to Paris"
+Turn 2: "What about hotels?"
+
+❌ Without context: AI asks "Where?"
+✅ With context: AI knows user means Paris
+```
+
+### Reference Resolution
+```
+Turn 1: "Show me the MacBook Pro and Dell XPS"
+Turn 2: "What's the battery life on the second one?"
+
+❌ Without context: AI confused
+✅ With context: AI knows "second one" = Dell XPS
+```
+
+### State Management
+```
+Turn 1: "I want to book a flight"
+Turn 2: "From Boston to Seattle"
+Turn 3: "Next Friday"
+
+AI must accumulate: flight booking, BOS→SEA, date=next Friday
+```
+
+## Testing Approaches
+
+### Approach 1: Stateless (Recommended)
+
+Test each conversation turn **independently** with full history:
+
+```json
+{
+  "tests": [
+    {
+      "id": "turn-1",
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "body": {
+              "messages": [
+                { "role": "user", "content": "I need a laptop" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "turn-2",
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "body": {
+              "messages": [
+                { "role": "user", "content": "I need a laptop" },
+                { "role": "assistant", "content": "What's your budget?" },
+                { "role": "user", "content": "$1000" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Pros:**
+- ✅ Each test is independent
+- ✅ Can run tests in parallel
+- ✅ Easy to debug individual turns
+- ✅ No shared state between tests
+
+**Cons:**
+- ❌ More verbose (repeat full history)
+- ❌ Doesn't test actual conversation flow
+
+### Approach 2: Stateful
+
+Test conversation as **continuous flow**:
+
+```json
+{
+  "tests": [{
+    "id": "full-conversation",
+    "pipeline": [
+      {
+        "id": "turn-1",
+        "block": "HttpRequest",
+        "input": {
+          "body": {
+            "messages": [{ "role": "user", "content": "I need a laptop" }]
+          }
+        },
+        "output": "response1"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response1.body}",
+        "output": { "parsed": "data1" }
+      },
+      {
+        "id": "turn-2",
+        "block": "HttpRequest",
+        "input": {
+          "body": {
+            "messages": [
+              { "role": "user", "content": "I need a laptop" },
+              { "role": "assistant", "content": "${data1.message}" },
+              { "role": "user", "content": "$1000" }
+            ]
+          }
+        },
+        "output": "response2"
+      }
+    ]
+  }]
+}
+```
+
+**Pros:**
+- ✅ Tests actual conversation flow
+- ✅ Validates state management
+- ✅ Closer to real usage
+
+**Cons:**
+- ❌ Tests are sequential (slower)
+- ❌ Hard to isolate failures
+- ❌ One failure breaks entire test
+
+## Using History in LLMJudge
+
+LLMJudge accepts conversation `history` to evaluate responses in context:
+
+```json
+{
+  "block": "LLMJudge",
+  "input": {
+    "text": "${aiResponse}",
+    "history": [
+      { "role": "user", "content": "I'm looking for a laptop" },
+      { "role": "assistant", "content": "What's your budget?" },
+      { "role": "user", "content": "Around $1000" }
+    ],
+    "expected": {
+      "expectedBehavior": "Recommends laptops in the $800-1200 range, remembering user's $1000 budget"
+    }
+  },
+  "output": "judgement"
+}
+```
+
+Without history, LLMJudge wouldn't know the "$1000 budget" context.
+
+## Real-World Examples
+
+### 1. Customer Service Bot
+
+```json
+{
+  "name": "Customer Service Conversation",
+  "context": {
+    "CHAT_URL": "${env.CHAT_API_URL}"
+  },
+  "tests": [
+    {
+      "id": "turn-1-greeting",
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "${CHAT_URL}/chat",
+            "method": "POST",
+            "body": {
+              "messages": [
+                { "role": "user", "content": "Hello" }
+              ]
+            }
+          },
+          "output": "response"
+        },
+        {
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": { "parsed": "data" }
+        },
+        {
+          "block": "LLMJudge",
+          "input": {
+            "text": "${data.message}",
+            "expected": {
+              "expectedBehavior": "Friendly greeting and asks how they can help"
+            }
+          },
+          "output": "judgement"
+        }
+      ],
+      "assertions": {
+        "judgement.score": { "gte": 0.8 }
+      }
+    },
+    {
+      "id": "turn-2-state-problem",
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "${CHAT_URL}/chat",
+            "method": "POST",
+            "body": {
+              "messages": [
+                { "role": "user", "content": "Hello" },
+                { "role": "assistant", "content": "Hi! How can I help you today?" },
+                { "role": "user", "content": "My order hasn't arrived" }
+              ]
+            }
+          },
+          "output": "response"
+        },
+        {
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": { "parsed": "data" }
+        },
+        {
+          "block": "LLMJudge",
+          "input": {
+            "text": "${data.message}",
+            "history": [
+              { "role": "user", "content": "Hello" },
+              { "role": "assistant", "content": "Hi! How can I help you today?" },
+              { "role": "user", "content": "My order hasn't arrived" }
+            ],
+            "expected": {
+              "expectedBehavior": "Shows empathy and asks for order number or details. Must be empathetic, not blame the customer, and ask for order information."
+            }
+          },
+          "output": "judgement"
+        }
+      ],
+      "assertions": {
+        "judgement.score": { "gte": 0.85 }
+      }
+    },
+    {
+      "id": "turn-3-provide-order",
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "${CHAT_URL}/chat",
+            "method": "POST",
+            "body": {
+              "messages": [
+                { "role": "user", "content": "Hello" },
+                { "role": "assistant", "content": "Hi! How can I help you today?" },
+                { "role": "user", "content": "My order hasn't arrived" },
+                { "role": "assistant", "content": "I'm sorry to hear that. Could you provide your order number?" },
+                { "role": "user", "content": "It's #12345" }
+              ]
+            }
+          },
+          "output": "response"
+        },
+        {
+          "block": "StreamParser",
+          "input": "${response.body}",
+          "output": {
+            "text": "aiMessage",
+            "toolCalls": "tools"
+          }
+        },
+        {
+          "block": "ValidateTools",
+          "input": {
+            "from": "tools",
+            "as": "toolCalls"
+          },
+          "config": {
+            "expected": ["lookup_order"],
+            "validateArgs": {
+              "lookup_order": {
+                "order_id": "12345"
+              }
+            }
+          },
+          "output": "toolValidation"
+        },
+        {
+          "block": "LLMJudge",
+          "input": {
+            "text": "${aiMessage}",
+            "toolCalls": "${tools}",
+            "history": [
+              { "role": "user", "content": "Hello" },
+              { "role": "assistant", "content": "Hi! How can I help you today?" },
+              { "role": "user", "content": "My order hasn't arrived" },
+              { "role": "assistant", "content": "I'm sorry to hear that. Could you provide your order number?" },
+              { "role": "user", "content": "It's #12345" }
+            ],
+            "expected": {
+              "expectedBehavior": "Looks up order #12345 and provides status update"
+            }
+          },
+          "output": "judgement"
+        }
+      ],
+      "assertions": {
+        "toolValidation.passed": true,
+        "judgement.score": { "gte": 0.8 }
+      }
+    }
+  ]
+}
+```
+
+### 2. Shopping Assistant
+
+```json
+{
+  "name": "Shopping Assistant Conversation",
+  "tests": [{
+    "id": "laptop-shopping-flow",
+    "pipeline": [
+      {
+        "id": "turn-1",
+        "block": "MockData",
+        "config": {
+          "data": {
+            "messages": [
+              { "role": "user", "content": "I need a laptop for programming" }
+            ]
+          }
+        },
+        "output": "context1"
+      },
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "${SHOP_API}/chat",
+          "method": "POST",
+          "body": "${context1.messages}"
+        },
+        "output": "response1"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response1.body}",
+        "output": { "parsed": "aiReply1" }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${aiReply1.message}",
+          "expected": {
+            "expectedBehavior": "Asks clarifying questions about budget, preferred OS, or performance needs"
+          }
+        },
+        "output": "check1"
+      },
+      {
+        "id": "turn-2",
+        "block": "HttpRequest",
+        "input": {
+          "url": "${SHOP_API}/chat",
+          "method": "POST",
+          "body": {
+            "messages": [
+              { "role": "user", "content": "I need a laptop for programming" },
+              { "role": "assistant", "content": "${aiReply1.message}" },
+              { "role": "user", "content": "Budget is $1500, prefer MacOS" }
+            ]
+          }
+        },
+        "output": "response2"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response2.body}",
+        "output": { "parsed": "aiReply2" }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${aiReply2.message}",
+          "history": [
+            { "role": "user", "content": "I need a laptop for programming" },
+            { "role": "assistant", "content": "${aiReply1.message}" },
+            { "role": "user", "content": "Budget is $1500, prefer MacOS" }
+          ],
+          "expected": {
+            "expectedBehavior": "Recommends MacBook models within $1500 budget, suitable for programming"
+          }
+        },
+        "output": "check2"
+      }
+    ],
+    "assertions": {
+      "check1.score": { "gte": 0.8 },
+      "check2.score": { "gte": 0.85 }
+    }
+  }]
+}
+```
+
+### 3. Tutoring Bot (Long Context)
+
+```json
+{
+  "tests": [{
+    "id": "math-tutoring-session",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "${TUTOR_API}/chat",
+          "method": "POST",
+          "body": {
+            "messages": [
+              { "role": "user", "content": "I don't understand how to solve quadratic equations" },
+              { "role": "assistant", "content": "Let me help! A quadratic equation has the form ax² + bx + c = 0. Have you learned the quadratic formula?" },
+              { "role": "user", "content": "No, what is it?" },
+              { "role": "assistant", "content": "The quadratic formula is x = (-b ± √(b²-4ac)) / 2a. Let's try an example: x² + 5x + 6 = 0" },
+              { "role": "user", "content": "How do I start?" }
+            ]
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": { "parsed": "data" }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${data.message}",
+          "history": [
+            { "role": "user", "content": "I don't understand how to solve quadratic equations" },
+            { "role": "assistant", "content": "Let me help! A quadratic equation has the form ax² + bx + c = 0. Have you learned the quadratic formula?" },
+            { "role": "user", "content": "No, what is it?" },
+            { "role": "assistant", "content": "The quadratic formula is x = (-b ± √(b²-4ac)) / 2a. Let's try an example: x² + 5x + 6 = 0" },
+            { "role": "user", "content": "How do I start?" }
+          ],
+          "expected": {
+            "expectedBehavior": "Guides student through identifying a=1, b=5, c=6 in the example x² + 5x + 6 = 0, remembering the quadratic formula already explained. Must reference the specific example, not solve it for them but guide them, and be encouraging and patient."
+          }
+        },
+        "output": "judgement"
+      }
+    ],
+    "assertions": {
+      "judgement.score": { "gte": 0.9 }
+    }
+  }]
+}
+```
+
+## Testing Context Retention
+
+### Test Reference Resolution
+
+```json
+{
+  "tests": [{
+    "id": "test-pronoun-resolution",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "body": {
+            "messages": [
+              { "role": "user", "content": "Tell me about the MacBook Pro and the Dell XPS" },
+              { "role": "assistant", "content": "The MacBook Pro has M3 chip... The Dell XPS has Intel processor..." },
+              { "role": "user", "content": "Which one has better battery life?" }
+            ]
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": { "parsed": "data" }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${data.message}",
+          "history": [
+            { "role": "user", "content": "Tell me about the MacBook Pro and the Dell XPS" },
+            { "role": "assistant", "content": "The MacBook Pro has M3 chip... The Dell XPS has Intel processor..." },
+            { "role": "user", "content": "Which one has better battery life?" }
+          ],
+          "expected": {
+            "expectedBehavior": "Compares battery life between MacBook Pro and Dell XPS, understanding 'which one' refers to these two laptops"
+          }
+        },
+        "output": "judgement"
+      }
+    ],
+    "assertions": {
+      "judgement.score": { "gte": 0.8 }
+    }
+  }]
+}
+```
+
+### Test Information Accumulation
+
+```json
+{
+  "tests": [{
+    "id": "test-state-accumulation",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "body": {
+            "messages": [
+              { "role": "user", "content": "I want to book a flight" },
+              { "role": "assistant", "content": "Great! Where are you flying from?" },
+              { "role": "user", "content": "Boston" },
+              { "role": "assistant", "content": "And where to?" },
+              { "role": "user", "content": "Seattle" },
+              { "role": "assistant", "content": "When would you like to travel?" },
+              { "role": "user", "content": "Next Friday" }
+            ]
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "StreamParser",
+        "input": "${response.body}",
+        "output": {
+          "text": "aiMessage",
+          "toolCalls": "tools"
+        }
+      },
+      {
+        "block": "ValidateTools",
+        "input": { "from": "tools", "as": "toolCalls" },
+        "config": {
+          "expected": ["search_flights"],
+          "validateArgs": {
+            "search_flights": {
+              "origin": "Boston",
+              "destination": "Seattle"
+            }
+          }
+        },
+        "output": "toolCheck"
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${aiMessage}",
+          "toolCalls": "${tools}",
+          "history": [
+            { "role": "user", "content": "I want to book a flight" },
+            { "role": "assistant", "content": "Great! Where are you flying from?" },
+            { "role": "user", "content": "Boston" },
+            { "role": "assistant", "content": "And where to?" },
+            { "role": "user", "content": "Seattle" },
+            { "role": "assistant", "content": "When would you like to travel?" },
+            { "role": "user", "content": "Next Friday" }
+          ],
+          "expected": {
+            "expectedBehavior": "Searches for flights from Boston to Seattle for next Friday, having accumulated all the information"
+          }
+        },
+        "output": "judgement"
+      }
+    ],
+    "assertions": {
+      "toolCheck.passed": true,
+      "judgement.score": { "gte": 0.8 }
+    }
+  }]
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Always Pass Full History to LLMJudge">
+    ```json
+    {
+      "block": "LLMJudge",
+      "input": {
+        "text": "${aiResponse}",
+        "history": [...all previous messages...],
+        "expected": {...}
+      }
+    }
+    ```
+
+    Without history, LLMJudge can't judge context-dependent responses.
+  </Accordion>
+
+  <Accordion title="2. Test Each Turn Independently (Stateless)">
+    ```json
+    {
+      "tests": [
+        { "id": "turn-1", "pipeline": [...] },
+        { "id": "turn-2", "pipeline": [...] },  // Independent
+        { "id": "turn-3", "pipeline": [...] }
+      ]
+    }
+    ```
+
+    Easier to debug and run in parallel.
+  </Accordion>
+
+  <Accordion title="3. Test Key Conversation Patterns">
+    - Reference resolution ("it", "that one", "the previous")
+    - Information accumulation (collecting details over turns)
+    - Topic switching (changing subject mid-conversation)
+    - Clarification requests ("What did you mean by...")
+    - Error recovery ("Sorry, I meant...")
+  </Accordion>
+
+  <Accordion title="4. Test Context Limits">
+    AI models have context limits (e.g., 8K tokens). Test long conversations:
+
+    ```json
+    {
+      "tests": [{
+        "id": "test-long-conversation",
+        "pipeline": [
+          {
+            "block": "HttpRequest",
+            "input": {
+              "body": {
+                "messages": [
+                  // 50+ messages here
+                ]
+              }
+            }
+          }
+        ]
+      }]
+    }
+    ```
+
+    Ensure AI still responds appropriately.
+  </Accordion>
+
+  <Accordion title="5. Validate State Persistence">
+    Test that information from early turns is remembered:
+
+    ```json
+    {
+      "expected": {
+        "expectedBehavior": "Remembers user's name (Alice) from turn 1 and budget ($1000) from turn 3"
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Patterns
+
+### Conversation Repair
+
+Test how AI handles corrections:
+
+```json
+{
+  "tests": [{
+    "id": "test-correction-handling",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "body": {
+            "messages": [
+              { "role": "user", "content": "Book a flight to Paris" },
+              { "role": "assistant", "content": "Great! When would you like to fly to Paris?" },
+              { "role": "user", "content": "Sorry, I meant London, not Paris" }
+            ]
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": { "parsed": "data" }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${data.message}",
+          "history": [
+            { "role": "user", "content": "Book a flight to Paris" },
+            { "role": "assistant", "content": "Great! When would you like to fly to Paris?" },
+            { "role": "user", "content": "Sorry, I meant London, not Paris" }
+          ],
+          "expected": {
+            "expectedBehavior": "Acknowledges correction and asks about London flight instead"
+          }
+        },
+        "output": "judgement"
+      }
+    ],
+    "assertions": {
+      "judgement.score": { "gte": 0.8 }
+    }
+  }]
+}
+```
+
+### Ambiguity Resolution
+
+Test how AI handles unclear references:
+
+```json
+{
+  "tests": [{
+    "id": "test-ambiguous-reference",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "body": {
+            "messages": [
+              { "role": "user", "content": "Tell me about the iPhone 15 and Samsung S24" },
+              { "role": "assistant", "content": "The iPhone 15 has A17 chip... Samsung S24 has Snapdragon..." },
+              { "role": "user", "content": "What about its camera?" }
+            ]
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": { "parsed": "data" }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${data.message}",
+          "history": [
+            { "role": "user", "content": "Tell me about the iPhone 15 and Samsung S24" },
+            { "role": "assistant", "content": "The iPhone 15 has A17 chip... Samsung S24 has Snapdragon..." },
+            { "role": "user", "content": "What about its camera?" }
+          ],
+          "expected": {
+            "expectedBehavior": "Either asks for clarification (which phone?) or discusses both cameras"
+          }
+        },
+        "output": "judgement"
+      }
+    ]
+  }]
+}
+```
+
+### Multi-Topic Conversations
+
+Test topic switching:
+
+```json
+{
+  "tests": [{
+    "id": "test-topic-switch",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "body": {
+            "messages": [
+              { "role": "user", "content": "What's the weather in Boston?" },
+              { "role": "assistant", "content": "It's 72°F and sunny in Boston" },
+              { "role": "user", "content": "Actually, can you help me book a hotel instead?" }
+            ]
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": { "parsed": "data" }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${data.message}",
+          "history": [
+            { "role": "user", "content": "What's the weather in Boston?" },
+            { "role": "assistant", "content": "It's 72°F and sunny in Boston" },
+            { "role": "user", "content": "Actually, can you help me book a hotel instead?" }
+          ],
+          "expected": {
+            "expectedBehavior": "Switches topic gracefully to hotel booking, possibly inferring Boston as location"
+          }
+        },
+        "output": "judgement"
+      }
+    ]
+  }]
+}
+```
+
+## Troubleshooting
+
+### Problem: AI doesn't remember context
+
+**Check:**
+1. Is history passed to the API?
+2. Is conversation too long (exceeding token limit)?
+3. Is API endpoint stateful or stateless?
+
+### Problem: LLMJudge gives low scores despite good response
+
+**Solution:** Include full history:
+```json
+{
+  "input": {
+    "history": [...all messages...],
+    "expected": {
+      "expectedBehavior": "Response should make sense in context of previous conversation"
+    }
+  }
+}
+```
+
+### Problem: Tests are slow
+
+**Solution:** Use stateless testing:
+```json
+{
+  "tests": [
+    { "id": "turn-1" },  // Independent
+    { "id": "turn-2" },  // Run in parallel
+    { "id": "turn-3" }
+  ]
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Semantic Validation"
+    icon="gavel"
+    href="/ai-testing/semantic-validation"
+  >
+    Deep dive into LLMJudge for validation
+  </Card>
+
+  <Card
+    title="Tool Call Validation"
+    icon="wrench"
+    href="/ai-testing/tool-calls"
+  >
+    Validate AI tool/function calls
+  </Card>
+
+  <Card
+    title="LLMJudge Reference"
+    icon="book"
+    href="/blocks/llm-judge"
+  >
+    Complete LLMJudge documentation
+  </Card>
+
+  <Card
+    title="Calendar Agent Example"
+    icon="calendar"
+    href="/examples/calendar-agent"
+  >
+    Full conversational agent example
+  </Card>
+</CardGroup>

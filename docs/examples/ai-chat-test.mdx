@@ -1,0 +1,317 @@
+---
+title: 'AI Chat Test'
+description: 'Test AI chat responses with semantic validation'
+icon: 'robot'
+---
+
+## Overview
+
+This example demonstrates how to test AI chat responses using **LLMJudge** for semantic validation. Instead of exact text matching, we validate that responses meet behavioral expectations.
+
+## Complete Test
+
+```json test.json
+{
+  "name": "AI Chat Quality Tests",
+  "version": "1.0.0",
+  "tests": [
+    {
+      "id": "meeting-scheduler",
+      "name": "Test Meeting Scheduler Response",
+      "pipeline": [
+        {
+          "id": "mock-ai-response",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "text": "I've successfully scheduled your team meeting for tomorrow at 2 PM in Conference Room A. The meeting has been added to your calendar and invitations have been sent to john@example.com.",
+              "toolCalls": [
+                {
+                  "name": "check_user_conflicts",
+                  "args": {
+                    "date": "2024-01-20",
+                    "startTime": "14:00",
+                    "endTime": "15:00"
+                  }
+                },
+                {
+                  "name": "create_event",
+                  "args": {
+                    "summary": "Team Meeting",
+                    "start": "2024-01-20T14:00:00",
+                    "end": "2024-01-20T15:00:00",
+                    "location": "Conference Room A",
+                    "attendees": ["john@example.com"]
+                  }
+                }
+              ]
+            }
+          },
+          "output": "aiResponse"
+        },
+        {
+          "id": "judge-response",
+          "block": "LLMJudge",
+          "input": {
+            "text": "${aiResponse.text}",
+            "toolCalls": "${aiResponse.toolCalls}",
+            "expected": {
+              "expectedBehavior": "The AI should check for conflicts using check_user_conflicts, then create a meeting using create_event. The response should confirm the meeting is scheduled for tomorrow at 2 PM in Conference Room A and mention that invitations were sent."
+            }
+          },
+          "config": {
+            "model": "gpt-4o-mini",
+            "criteria": {
+              "accuracy": 0.4,
+              "completeness": 0.3,
+              "relevance": 0.3
+            }
+          },
+          "output": "judgement"
+        }
+      ],
+      "assertions": {
+        "judgement.score": { "gt": 0.7 }
+      }
+    },
+    {
+      "id": "bad-response-detection",
+      "name": "Detect Poor AI Response",
+      "pipeline": [
+        {
+          "id": "mock-bad-response",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "text": "I cannot help with that request.",
+              "toolCalls": []
+            }
+          },
+          "output": "badResponse"
+        },
+        {
+          "id": "judge-bad",
+          "block": "LLMJudge",
+          "input": {
+            "text": "${badResponse.text}",
+            "toolCalls": "${badResponse.toolCalls}",
+            "expected": {
+              "expectedBehavior": "The AI should check for conflicts and create a meeting with confirmation. It should mention scheduling details and confirm the action was successful."
+            }
+          },
+          "config": {
+            "model": "gpt-4o-mini"
+          },
+          "output": "badJudgement"
+        }
+      ],
+      "assertions": {
+        "badJudgement.score": { "lt": 0.4 }
+      }
+    }
+  ]
+}
+```
+
+## Setup
+
+You'll need an OpenAI API key:
+
+```bash .env
+OPENAI_API_KEY=sk-proj-your-key-here
+```
+
+## Running the Test
+
+```bash
+npx semtest test.json
+```
+
+Expected output:
+
+```
+✅ AI Chat Quality Tests
+  ✅ meeting-scheduler: Test Meeting Scheduler Response (1.2s)
+     ✅ judgement.score = 0.92 (> 0.7)
+     💡 AI used correct tools and provided complete confirmation
+
+  ✅ bad-response-detection: Detect Poor AI Response (0.8s)
+     ✅ badJudgement.score = 0.15 (< 0.4)
+     💡 Response failed to perform required actions
+
+2 tests passed, 0 failed (2.0s total)
+```
+
+## Breaking It Down
+
+### Good Response Test
+
+<Steps>
+  <Step title="Mock AI Response">
+    Simulate a successful AI response with tool calls:
+    ```json
+    {
+      "block": "MockData",
+      "config": {
+        "data": {
+          "text": "I've successfully scheduled...",
+          "toolCalls": [...]
+        }
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Semantic Validation">
+    Use LLMJudge to validate the response semantically:
+    ```json
+    {
+      "block": "LLMJudge",
+      "input": {
+        "text": "${aiResponse.text}",
+        "toolCalls": "${aiResponse.toolCalls}",
+        "expected": {
+          "expectedBehavior": "Should check conflicts and create meeting..."
+        }
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Assert High Score">
+    Verify the AI response meets quality threshold:
+    ```json
+    {
+      "assertions": {
+        "judgement.score": { "gt": 0.7 }
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+### Bad Response Detection
+
+The second test verifies that **poor responses get low scores**, ensuring your LLMJudge criteria are working correctly:
+
+```json
+{
+  "text": "I cannot help with that request.",
+  "toolCalls": []
+}
+```
+
+This incomplete response should score below 0.4 because it:
+- Doesn't use required tools
+- Doesn't provide requested information
+- Fails to complete the task
+
+## Custom Criteria
+
+Adjust scoring weights based on what matters most:
+
+```json
+{
+  "config": {
+    "criteria": {
+      "accuracy": 0.5,      // Most important: is it correct?
+      "completeness": 0.3,  // Did it cover everything?
+      "relevance": 0.2      // Is it on-topic?
+    }
+  }
+}
+```
+
+## Real-World Usage
+
+### Testing OpenAI Chat API
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer ${env.OPENAI_API_KEY}",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "model": "gpt-4o-mini",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Schedule a team meeting for tomorrow at 2pm"
+            }
+          ],
+          "tools": [...]
+        }
+      },
+      "output": "response"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": { "parsed": "aiData" }
+    },
+    {
+      "block": "LLMJudge",
+      "input": {
+        "text": "${aiData.choices[0].message.content}",
+        "toolCalls": "${aiData.choices[0].message.tool_calls}",
+        "expected": {
+          "expectedBehavior": "Should confirm meeting is scheduled..."
+        }
+      },
+      "output": "validation"
+    }
+  ]
+}
+```
+
+## Cost Considerations
+
+LLMJudge uses GPT-4o-mini by default, which costs approximately:
+- **~$0.0001 per evaluation**
+- **~$0.001 for 10 tests**
+- **~$0.10 for 1000 tests**
+
+For production CI/CD, consider:
+1. Testing a sample of responses (not every one)
+2. Using faster traditional validation where possible
+3. Running full semantic tests nightly
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Semantic Validation"
+    icon="gavel"
+    href="/ai-testing/semantic-validation"
+  >
+    Deep dive into LLMJudge
+  </Card>
+  <Card
+    title="Tool Call Validation"
+    icon="wrench"
+    href="/ai-testing/tool-calls"
+  >
+    Validate AI tool usage
+  </Card>
+  <Card
+    title="Calendar Agent"
+    icon="calendar"
+    href="/examples/calendar-agent"
+  >
+    Complete calendar agent example
+  </Card>
+  <Card
+    title="LLMJudge Block"
+    icon="book"
+    href="/blocks/llm-judge"
+  >
+    Complete LLMJudge documentation
+  </Card>
+</CardGroup>

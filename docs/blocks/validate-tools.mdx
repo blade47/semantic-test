@@ -1,0 +1,569 @@
+---
+title: 'ValidateTools'
+description: 'Validate AI tool/function calls'
+icon: 'wrench'
+---
+
+## Overview
+
+The **ValidateTools** block validates that AI models call the correct tools/functions with the right arguments. Essential for testing AI agents and function-calling models.
+
+```json
+{
+  "block": "ValidateTools",
+  "input": {
+    "from": "aiResponse.toolCalls",
+    "as": "toolCalls"
+  },
+  "config": {
+    "expected": ["search_database", "send_email"]
+  },
+  "output": "toolValidation"
+}
+```
+
+## Input Parameters
+
+### Required
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `toolCalls` | array | Array of tool call objects |
+
+Each tool call object should have:
+```javascript
+{
+  name: "tool_name",      // or toolName
+  args: { /* ... */ }     // optional arguments
+}
+```
+
+## Configuration
+
+All config parameters are optional:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `expected` | string/array | Required tool names |
+| `forbidden` | string/array | Tools that should NOT be called |
+| `minTools` | number | Minimum number of tools that should be called |
+| `maxTools` | number | Maximum number of tools allowed |
+| `order` | array | Expected order of tool calls |
+| `validateArgs` | object | Expected arguments for each tool |
+
+## Output Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `passed` | boolean | Whether all validations passed |
+| `failures` | array | List of validation failures |
+| `score` | number | Validation score (0.0 - 1.0) |
+| `actualTools` | array | Tool names that were actually called |
+| `expectedTools` | array | Tool names that were expected |
+
+## Examples
+
+### Validate Expected Tools
+
+```json
+{
+  "block": "ValidateTools",
+  "input": {
+    "from": "aiResponse.toolCalls",
+    "as": "toolCalls"
+  },
+  "config": {
+    "expected": ["search_database", "send_email"]
+  },
+  "output": "validation"
+}
+```
+
+**Success:**
+```javascript
+{
+  passed: true,
+  failures: [],
+  score: 1.0,
+  actualTools: ["search_database", "send_email"],
+  expectedTools: ["search_database", "send_email"]
+}
+```
+
+**Failure:**
+```javascript
+{
+  passed: false,
+  failures: ["Missing expected tools: send_email"],
+  score: 0.5,
+  actualTools: ["search_database"],
+  expectedTools: ["search_database", "send_email"]
+}
+```
+
+### Forbid Dangerous Tools
+
+```json
+{
+  "block": "ValidateTools",
+  "input": {
+    "from": "aiResponse.toolCalls",
+    "as": "toolCalls"
+  },
+  "config": {
+    "forbidden": ["delete_database", "drop_table"]
+  },
+  "output": "validation"
+}
+```
+
+### Validate Tool Count
+
+```json
+{
+  "block": "ValidateTools",
+  "input": {
+    "from": "aiResponse.toolCalls",
+    "as": "toolCalls"
+  },
+  "config": {
+    "minTools": 1,
+    "maxTools": 3
+  },
+  "output": "validation"
+}
+```
+
+### Validate Tool Order
+
+```json
+{
+  "block": "ValidateTools",
+  "input": {
+    "from": "aiResponse.toolCalls",
+    "as": "toolCalls"
+  },
+  "config": {
+    "order": ["get_user", "update_profile", "send_notification"]
+  },
+  "output": "validation"
+}
+```
+
+### Validate Tool Arguments
+
+```json
+{
+  "block": "ValidateTools",
+  "input": {
+    "from": "aiResponse.toolCalls",
+    "as": "toolCalls"
+  },
+  "config": {
+    "expected": ["search_database"],
+    "validateArgs": {
+      "search_database": {
+        "table": "users",
+        "limit": 10
+      }
+    }
+  },
+  "output": "validation"
+}
+```
+
+### Combined Validations
+
+```json
+{
+  "block": "ValidateTools",
+  "input": {
+    "from": "aiResponse.toolCalls",
+    "as": "toolCalls"
+  },
+  "config": {
+    "expected": ["search_users", "send_email"],
+    "forbidden": ["delete_user"],
+    "minTools": 2,
+    "maxTools": 3,
+    "validateArgs": {
+      "search_users": {
+        "limit": 10
+      }
+    }
+  },
+  "output": "validation"
+}
+```
+
+## Common Patterns
+
+### Test AI Agent Tool Usage
+
+```json
+{
+  "name": "AI Agent Tool Test",
+  "tests": [{
+    "id": "test-calendar-agent",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "${AI_API_URL}/chat",
+          "method": "POST",
+          "body": {
+            "messages": [{
+              "role": "user",
+              "content": "Schedule a meeting for tomorrow at 2pm"
+            }],
+            "tools": [
+              { "name": "search_calendar" },
+              { "name": "create_event" }
+            ]
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "StreamParser",
+        "input": "${response.body}",
+        "config": { "format": "sse-openai" },
+        "output": {
+          "toolCalls": "toolCalls"
+        }
+      },
+      {
+        "block": "ValidateTools",
+        "input": {
+          "from": "toolCalls",
+          "as": "toolCalls"
+        },
+        "config": {
+          "expected": ["search_calendar", "create_event"],
+          "order": ["search_calendar", "create_event"]
+        },
+        "output": "toolValidation"
+      }
+    ],
+    "assertions": {
+      "toolValidation.passed": true
+    }
+  }]
+}
+```
+
+### Ensure Safe Tool Usage
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${AI_URL}/chat",
+        "method": "POST",
+        "body": {
+          "message": "Delete my account"
+        }
+      },
+      "output": "response"
+    },
+    {
+      "block": "StreamParser",
+      "input": "${response.body}",
+      "output": { "toolCalls": "tools" }
+    },
+    {
+      "block": "ValidateTools",
+      "input": {
+        "from": "tools",
+        "as": "toolCalls"
+      },
+      "config": {
+        "forbidden": ["delete_account", "drop_database"]
+      },
+      "output": "safety"
+    }
+  ],
+  "assertions": {
+    "safety.passed": true
+  }
+}
+```
+
+### Validate Multi-Step Agent
+
+```json
+{
+  "block": "ValidateTools",
+  "input": {
+    "from": "aiResponse.toolCalls",
+    "as": "toolCalls"
+  },
+  "config": {
+    "order": [
+      "authenticate_user",
+      "fetch_data",
+      "process_data",
+      "send_response"
+    ]
+  },
+  "output": "validation"
+}
+```
+
+## Tool Call Format
+
+The block expects tool calls in this format:
+
+```javascript
+[
+  {
+    name: "search_database",  // or toolName
+    args: {
+      query: "users",
+      limit: 10
+    }
+  },
+  {
+    name: "send_email",
+    args: {
+      to: "user@example.com",
+      subject: "Hello"
+    }
+  }
+]
+```
+
+**Compatible with:**
+- OpenAI function calling format
+- Anthropic tool use format
+- Vercel AI SDK tool calls
+
+StreamParser automatically extracts tool calls into this format from streaming responses.
+
+## Validation Score
+
+The `score` field represents validation quality:
+
+- **1.0** - All validations passed
+- **0.5 - 0.9** - Some issues (missing tools, wrong order)
+- **< 0.5** - Significant issues (forbidden tools used, major mismatches)
+
+Factors that reduce score:
+- Missing expected tools
+- Using forbidden tools
+- Wrong tool count
+- Incorrect order
+- Argument mismatches
+
+## Error Messages
+
+Common failure messages:
+
+| Message | Cause |
+|---------|-------|
+| `Missing expected tools: tool1, tool2` | Expected tools not called |
+| `Used forbidden tools: tool1` | Forbidden tool was called |
+| `Too few tools: 1 < 2` | Below minTools |
+| `Too many tools: 5 > 3` | Above maxTools |
+| `Tool order incorrect` | Tools called in wrong order |
+| `Tool 'search' arg 'limit' mismatch` | Tool argument doesn't match expected value |
+
+## Full Example
+
+```json
+{
+  "name": "Customer Service Agent Test",
+  "context": {
+    "AI_URL": "${env.AI_API_URL}",
+    "API_KEY": "${env.API_KEY}"
+  },
+  "tests": [{
+    "id": "test-customer-query",
+    "pipeline": [
+      {
+        "id": "call-agent",
+        "block": "HttpRequest",
+        "input": {
+          "url": "${AI_URL}/chat",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer ${API_KEY}"
+          },
+          "body": {
+            "messages": [{
+              "role": "user",
+              "content": "Look up my order #12345 and send me an update"
+            }],
+            "tools": [
+              { "name": "search_orders", "description": "Search orders" },
+              { "name": "send_email", "description": "Send email" }
+            ]
+          }
+        },
+        "output": "response"
+      },
+      {
+        "id": "parse-stream",
+        "block": "StreamParser",
+        "input": "${response.body}",
+        "config": {
+          "format": "sse-openai"
+        },
+        "output": {
+          "text": "aiMessage",
+          "toolCalls": "toolCalls"
+        }
+      },
+      {
+        "id": "validate-tools",
+        "block": "ValidateTools",
+        "input": {
+          "from": "toolCalls",
+          "as": "toolCalls"
+        },
+        "config": {
+          "expected": ["search_orders", "send_email"],
+          "order": ["search_orders", "send_email"],
+          "minTools": 2,
+          "maxTools": 2,
+          "validateArgs": {
+            "search_orders": {
+              "order_id": "12345"
+            }
+          }
+        },
+        "output": "toolValidation"
+      }
+    ],
+    "assertions": {
+      "response.status": 200,
+      "toolValidation.passed": true,
+      "toolValidation.score": { "gt": 0.9 }
+    }
+  }]
+}
+```
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Use StreamParser First">
+    StreamParser extracts tool calls from streaming responses:
+
+    ```json
+    {
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "output": "response"
+        },
+        {
+          "block": "StreamParser",
+          "input": "${response.body}",
+          "output": { "toolCalls": "tools" }
+        },
+        {
+          "block": "ValidateTools",
+          "input": { "from": "tools", "as": "toolCalls" },
+          "config": { "expected": ["search"] },
+          "output": "validation"
+        }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Order Matters for Multi-Step Agents">
+    Use `order` to validate sequential tool usage:
+
+    ```json
+    {
+      "config": {
+        "order": ["auth", "fetch", "process", "respond"]
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Combine with LLMJudge">
+    ValidateTools checks structure, LLMJudge checks reasoning:
+
+    ```json
+    {
+      "pipeline": [
+        {
+          "block": "ValidateTools",
+          "config": { "expected": ["search"] },
+          "output": "toolCheck"
+        },
+        {
+          "block": "LLMJudge",
+          "input": {
+            "text": "${aiMessage}",
+            "expected": {
+              "expectedBehavior": "Polite customer service"
+            }
+          },
+          "output": "qualityCheck"
+        }
+      ],
+      "assertions": {
+        "toolCheck.passed": true,
+        "qualityCheck.score": { "gt": 0.7 }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use Forbidden for Safety">
+    Prevent dangerous operations:
+
+    ```json
+    {
+      "config": {
+        "forbidden": [
+          "delete_user",
+          "drop_table",
+          "execute_sql",
+          "send_money"
+        ]
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## When to Use
+
+**Use ValidateTools when:**
+- Testing AI function calling
+- Validating agent tool usage
+- Ensuring safe tool execution
+- Testing multi-step workflows
+- Verifying tool arguments
+
+**Don't use when:**
+- No tool/function calling involved
+- Testing pure text generation
+- Validating non-AI responses
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="StreamParser"
+    icon="wave-pulse"
+    href="/blocks/stream-parser"
+  >
+    Parse streaming responses with tool calls
+  </Card>
+  <Card
+    title="LLMJudge"
+    icon="gavel"
+    href="/blocks/llm-judge"
+  >
+    Validate AI response quality
+  </Card>
+</CardGroup>

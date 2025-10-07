@@ -1,0 +1,134 @@
+---
+title: 'Installation'
+description: 'Install SemanticTest in your project'
+icon: 'download'
+---
+
+## Package Manager
+
+Install SemanticTest using your preferred package manager:
+
+<CodeGroup>
+
+```bash npm
+npm install @blade47/semantic-test
+```
+
+```bash pnpm
+pnpm add @blade47/semantic-test
+```
+
+```bash yarn
+yarn add @blade47/semantic-test
+```
+
+</CodeGroup>
+
+## Environment Setup
+
+### Optional: OpenAI API Key
+
+If you want to use the `LLMJudge` block for semantic validation, you'll need an OpenAI API key.
+
+<Steps>
+  <Step title="Get an API Key">
+    Sign up at [OpenAI Platform](https://platform.openai.com) and create an API key
+  </Step>
+
+  <Step title="Create .env file">
+    Create a `.env` file in your project root:
+
+    ```bash .env
+    OPENAI_API_KEY=sk-proj-your-key-here
+    ```
+  </Step>
+
+  <Step title="Load environment variables">
+    The CLI automatically loads `.env` files. For programmatic usage:
+
+    ```javascript
+    import 'dotenv/config';
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  All other blocks work without any API keys!
+</Note>
+
+## Verify Installation
+
+Create a simple test file to verify installation:
+
+```json test.json
+{
+  "name": "Installation Test",
+  "tests": [{
+    "id": "verify",
+    "pipeline": [{
+      "block": "MockData",
+      "config": {
+        "data": { "message": "Hello, SemanticTest!" }
+      },
+      "output": "result"
+    }],
+    "assertions": {
+      "result.message": "Hello, SemanticTest!"
+    }
+  }]
+}
+```
+
+Run it:
+
+```bash
+npx semtest test.json
+```
+
+You should see:
+
+```
+✅ Installation Test
+  ✅ verify (5ms)
+     ✅ result.message = "Hello, SemanticTest!"
+
+1 test passed, 0 failed
+```
+
+## Project Structure
+
+We recommend organizing your tests like this:
+
+```
+your-project/
+├── tests/
+│   ├── api/
+│   │   ├── users.json
+│   │   └── auth.json
+│   ├── ai/
+│   │   ├── chat.json
+│   │   └── tools.json
+│   └── integration/
+│       └── e2e.json
+├── .env
+└── package.json
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Create your first test
+  </Card>
+  <Card
+    title="Core Concepts"
+    icon="book"
+    href="/concepts/pipelines"
+  >
+    Learn the fundamentals
+  </Card>
+</CardGroup>

@@ -1,0 +1,465 @@
+---
+title: 'Assertions'
+description: 'Validate your test results with powerful operators'
+icon: 'check-double'
+---
+
+## Overview
+
+**Assertions** are the final step in your test pipeline. After all blocks execute, assertions check if the data in the DataBus matches your expectations.
+
+```json
+{
+  "pipeline": [
+
+  ],
+  "assertions": {
+    "response.status": 200,
+    "user.id": 1,
+    "validation.passed": true
+  }
+}
+```
+
+## Simple Assertions (Equality)
+
+The simplest form checks for exact equality:
+
+```json
+{
+  "assertions": {
+    "response.status": 200,
+    "user.name": "John Doe",
+    "data.count": 10,
+    "validation.passed": true
+  }
+}
+```
+
+**Rules:**
+- String values must match exactly
+- Numbers must match exactly
+- Booleans must match exactly
+- Null values must match exactly
+
+## Operator Assertions
+
+For more complex validation, use operator objects with 20+ powerful operators.
+
+### Equality Operators
+
+```json
+{
+  "assertions": {
+    "response.status": { "equals": 200 },
+    "user.id": { "notEquals": 0 }
+  }
+}
+```
+
+### Numeric Comparisons
+
+```json
+{
+  "assertions": {
+    "user.age": { "gt": 18 },
+    "user.age": { "gte": 18 },
+    "response.time": { "lt": 1000 },
+    "data.count": { "lte": 100 }
+  }
+}
+```
+
+- `gt`: Greater than
+- `gte`: Greater than or equal
+- `lt`: Less than
+- `lte`: Less than or equal
+
+### String/Array Operations
+
+```json
+{
+  "assertions": {
+    "response.message": { "contains": "success" },
+    "user.roles": { "contains": "admin" },
+    "response.error": { "notContains": "fatal" },
+    "user.name": { "minLength": 1 },
+    "user.bio": { "maxLength": 500 }
+  }
+}
+```
+
+**For text:** Checks if the string contains the substring or meets length requirements
+
+**For arrays:** Checks if the array contains the value or meets length requirements
+
+### Pattern Matching
+
+```json
+{
+  "assertions": {
+    "user.email": { "matches": ".*@example\\.com" },
+    "data.phone": { "matches": "^\\d{3}-\\d{3}-\\d{4}$" },
+    "response.id": { "notMatches": "^temp-.*" }
+  }
+}
+```
+
+Uses JavaScript regex syntax.
+
+### Type Checks
+
+```json
+{
+  "assertions": {
+    "data.value": { "isNull": true },
+    "user.name": { "isNotNull": true },
+    "config.setting": { "isDefined": true },
+    "optional.field": { "isUndefined": true }
+  }
+}
+```
+
+### Boolean Checks
+
+```json
+{
+  "assertions": {
+    "validation.passed": { "isTrue": true },
+    "hasError": { "isFalse": true }
+  }
+}
+```
+
+### Empty Checks
+
+```json
+{
+  "assertions": {
+    "user.name": { "isNotEmpty": true },
+    "errors": { "isEmpty": true }
+  }
+}
+```
+
+Works with strings, arrays, and objects.
+
+## Complete Example
+
+```json
+{
+  "name": "User API Test",
+  "tests": [{
+    "id": "test-user",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "https://api.example.com/users/1",
+          "method": "GET"
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": {
+          "parsed": "user"
+        }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${user}",
+          "expected": {
+            "expectedBehavior": "Should have complete user profile"
+          }
+        },
+        "output": "judgement"
+      }
+    ],
+    "assertions": {
+      "response.status": { "gte": 200, "lt": 300 },
+      "user.id": { "gt": 0 },
+      "user.email": { "matches": ".*@.*\\..*", "isNotEmpty": true },
+      "user.age": { "gte": 0, "lte": 150 },
+      "user.roles": { "contains": "user", "isNotEmpty": true },
+      "user.name": { "minLength": 1, "maxLength": 100 },
+      "judgement.score": { "gte": 0.7 },
+      "judgement.reasoning": { "isNotEmpty": true }
+    }
+  }]
+}
+```
+
+## Multiple Operators
+
+You can combine multiple operators on the same field - all must pass:
+
+```json
+{
+  "assertions": {
+    "user.age": {
+      "gte": 18,
+      "lte": 100
+    },
+    "response.message": {
+      "contains": "success",
+      "matches": "^[A-Z].*",
+      "isNotEmpty": true
+    },
+    "user.email": {
+      "matches": ".*@.*\\..*",
+      "isNotEmpty": true,
+      "minLength": 5
+    }
+  }
+}
+```
+
+**Example explanations:**
+- `user.age`: Must be between 18 and 100
+- `response.message`: Must contain "success" AND start with capital letter
+- `user.email`: Must be valid email format AND not empty AND at least 5 characters
+
+All operators in a group are evaluated with AND logic - every operator must pass for the assertion to succeed.
+
+## Common Patterns
+
+<Tabs>
+  <Tab title="HTTP Status">
+    ```json
+    {
+      "assertions": {
+        "response.status": { "gte": 200, "lt": 300 },
+        "response.body": { "isNotEmpty": true }
+      }
+    }
+    ```
+
+    Check for success status range (200-299) and non-empty response body.
+  </Tab>
+
+  <Tab title="AI Judge">
+    ```json
+    {
+      "assertions": {
+        "judgement.score": { "gte": 0.7, "lte": 1.0 },
+        "judgement.reasoning": { "isNotEmpty": true }
+      }
+    }
+    ```
+
+    Ensure quality score is between 0.7 and 1.0 and reasoning is provided.
+  </Tab>
+
+  <Tab title="Data Validation">
+    ```json
+    {
+      "assertions": {
+        "user.email": {
+          "matches": ".*@.*\\..*",
+          "isNotEmpty": true
+        },
+        "user.id": { "gt": 0 },
+        "user.name": { "minLength": 1, "maxLength": 100 },
+        "user.bio": { "maxLength": 500 },
+        "user.createdAt": { "isDefined": true },
+        "user.nickname": { "maxLength": 50 }
+      }
+    }
+    ```
+
+    Validate email format, required fields, and field length constraints.
+  </Tab>
+
+  <Tab title="Tool Validation">
+    ```json
+    {
+      "assertions": {
+        "toolValidation.passed": true,
+        "toolValidation.actualTools": { "contains": "search_users" }
+      }
+    }
+    ```
+
+    Ensure tool validation passed and expected tools were called.
+  </Tab>
+</Tabs>
+
+## Assertion Failures
+
+When an assertion fails, you get detailed error messages:
+
+```bash
+❌ test-user: User API Test (234ms)
+   ✅ response.status = 200
+   ❌ user.age: Expected 25 to be > 30
+   ✅ user.email matches ".*@.*\\..*"
+   ❌ judgement.score: Expected 0.6 to be > 0.7
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Test Both Success and Failure Cases">
+    Test successful response:
+    ```json
+    {
+      "id": "success-case",
+      "pipeline": [],
+      "assertions": {
+        "response.status": 200,
+        "validation.passed": true
+      }
+    }
+    ```
+
+    Test error handling:
+    ```json
+    {
+      "id": "error-case",
+      "pipeline": [],
+      "assertions": {
+        "response.status": 400,
+        "validation.passed": false
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use Ranges Instead of Exact Values">
+    Bad - too specific:
+    ```json
+    {
+      "judgement.score": 0.85
+    }
+    ```
+
+    Good - allows for variance:
+    ```json
+    {
+      "judgement.score": { "gt": 0.7 }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Validate Structure and Content">
+    ```json
+    {
+      "assertions": {
+        "user.id": { "gt": 0 },
+        "user.email": { "isDefined": true, "isNotEmpty": true },
+        "user.name": { "isNotEmpty": true },
+        "user.email": { "matches": ".*@.*\\..*" },
+        "user.name": { "minLength": 1, "maxLength": 100 }
+      }
+    }
+    ```
+
+    **Structure checks:** Required fields exist and are not empty
+
+    **Content checks:** Data values are valid (format, length, etc.)
+  </Accordion>
+
+  <Accordion title="Don't Over-Assert">
+    Bad - too many assertions make tests fragile:
+    ```json
+    {
+      "user.name": "John Doe",
+      "user.age": 30,
+      "user.email": "john@example.com",
+      "user.address.street": "123 Main St",
+      "user.address.city": "Springfield"
+    }
+    ```
+
+    Good - test what matters:
+    ```json
+    {
+      "user.id": 1,
+      "user.email": { "matches": ".*@.*\\..*" },
+      "response.status": 200
+    }
+    ```
+
+    If any specific detail changes, overly specific tests will break unnecessarily.
+  </Accordion>
+</AccordionGroup>
+
+## Operator Reference
+
+### Equality Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `equals` | Value equals expected | `{ "equals": 200 }` |
+| `notEquals` | Value does not equal expected | `{ "notEquals": 404 }` |
+
+### Numeric Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `gt` | Greater than | `{ "gt": 10 }` |
+| `gte` | Greater than or equal to | `{ "gte": 18 }` |
+| `lt` | Less than | `{ "lt": 100 }` |
+| `lte` | Less than or equal to | `{ "lte": 200 }` |
+
+### String/Array Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `contains` | String/array contains value | `{ "contains": "text" }` |
+| `notContains` | String/array does not contain value | `{ "notContains": "error" }` |
+| `minLength` | String/array length &gt;= value | `{ "minLength": 1 }` |
+| `maxLength` | String/array length &lt;= value | `{ "maxLength": 100 }` |
+
+### Pattern Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `matches` | String matches regex pattern | `{ "matches": "^\\d+$" }` |
+| `notMatches` | String does not match regex | `{ "notMatches": "^temp-.*" }` |
+
+### Type Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `isNull` | Value is null | `{ "isNull": true }` |
+| `isNotNull` | Value is not null | `{ "isNotNull": true }` |
+| `isDefined` | Value is defined (not undefined) | `{ "isDefined": true }` |
+| `isUndefined` | Value is undefined | `{ "isUndefined": true }` |
+
+### Boolean Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `isTrue` | Value is boolean true | `{ "isTrue": true }` |
+| `isFalse` | Value is boolean false | `{ "isFalse": true }` |
+
+### Empty Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `isEmpty` | String/array/object is empty | `{ "isEmpty": true }` |
+| `isNotEmpty` | String/array/object is not empty | `{ "isNotEmpty": true }` |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Browse Blocks"
+    icon="cubes"
+    href="/blocks/overview"
+  >
+    See what data each block produces
+  </Card>
+  <Card
+    title="View Examples"
+    icon="code"
+    href="/examples/basic-api-test"
+  >
+    See assertions in real tests
+  </Card>
+</CardGroup>
+

@@ -1,0 +1,642 @@
+---
+title: 'StreamParser'
+description: 'Parse Server-Sent Events (SSE) streaming responses from AI APIs'
+icon: 'wave-pulse'
+---
+
+## Overview
+
+The **StreamParser** block parses streaming responses (Server-Sent Events) from AI APIs. It extracts text content and tool calls from streaming formats used by OpenAI, Vercel AI SDK, and other providers.
+
+```json
+{
+  "block": "StreamParser",
+  "input": "${response.body}",
+  "config": {
+    "format": "sse-openai"
+  },
+  "output": {
+    "text": "aiMessage",
+    "toolCalls": "aiTools"
+  }
+}
+```
+
+## Input Parameters
+
+### Required
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `body` | string | Raw SSE stream response body |
+
+### Optional
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | string | `'text'` | Stream format (see supported formats below) |
+
+## Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | string | `'text'` | Streaming format to parse |
+
+## Supported Formats
+
+| Format | Description |
+|--------|-------------|
+| `sse` | Generic Server-Sent Events |
+| `sse-openai` | OpenAI streaming format (ChatGPT API) |
+| `sse-vercel` | Vercel AI SDK streaming format |
+| `text` | Plain text (no parsing) |
+
+## Output Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `text` | string | Combined text content from all chunks |
+| `toolCalls` | array | Tool/function calls made by the AI |
+| `chunks` | array | Individual stream chunks (for debugging) |
+| `metadata` | object | Parse metadata (format, counts, errors) |
+
+### Tool Call Format
+
+```javascript
+{
+  id: "call_123",
+  name: "search_database",
+  args: { query: "users", limit: 10 }
+}
+```
+
+## Examples
+
+### Parse OpenAI Streaming Response
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer ${env.OPENAI_API_KEY}"
+        },
+        "body": {
+          "model": "gpt-4",
+          "messages": [{ "role": "user", "content": "Hello!" }],
+          "stream": true
+        }
+      },
+      "output": "response"
+    },
+    {
+      "block": "StreamParser",
+      "input": "${response.body}",
+      "config": {
+        "format": "sse-openai"
+      },
+      "output": {
+        "text": "aiMessage",
+        "toolCalls": "aiTools",
+        "metadata": "streamMeta"
+      }
+    }
+  ],
+  "assertions": {
+    "aiMessage": { "matches": ".+" }
+  }
+}
+```
+
+### Parse Vercel AI SDK Stream
+
+```json
+{
+  "block": "StreamParser",
+  "input": "${response.body}",
+  "config": {
+    "format": "sse-vercel"
+  },
+  "output": {
+    "text": "aiText",
+    "toolCalls": "tools"
+  }
+}
+```
+
+### Extract Tool Calls
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${AI_API_URL}/chat",
+        "method": "POST",
+        "body": {
+          "message": "Search for users named John",
+          "tools": [
+            { "name": "search_database" }
+          ]
+        }
+      },
+      "output": "response"
+    },
+    {
+      "block": "StreamParser",
+      "input": "${response.body}",
+      "config": {
+        "format": "sse-openai"
+      },
+      "output": {
+        "text": "message",
+        "toolCalls": "tools"
+      }
+    },
+    {
+      "block": "ValidateTools",
+      "input": {
+        "from": "tools",
+        "as": "toolCalls"
+      },
+      "config": {
+        "expected": ["search_database"]
+      },
+      "output": "toolValidation"
+    }
+  ],
+  "assertions": {
+    "toolValidation.passed": true
+  }
+}
+```
+
+### Generic SSE Stream
+
+```json
+{
+  "block": "StreamParser",
+  "input": "${response.body}",
+  "config": {
+    "format": "sse"
+  },
+  "output": {
+    "text": "content",
+    "chunks": "allChunks"
+  }
+}
+```
+
+## Common Patterns
+
+### OpenAI Chat with Function Calling
+
+```json
+{
+  "name": "OpenAI Function Test",
+  "context": {
+    "OPENAI_URL": "https://api.openai.com/v1",
+    "API_KEY": "${env.OPENAI_API_KEY}"
+  },
+  "tests": [{
+    "id": "test-function-calling",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "${OPENAI_URL}/chat/completions",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer ${API_KEY}",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "gpt-4-turbo",
+            "messages": [{
+              "role": "user",
+              "content": "Search for users with the name Alice"
+            }],
+            "tools": [{
+              "type": "function",
+              "function": {
+                "name": "search_users",
+                "description": "Search for users",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "query": { "type": "string" }
+                  }
+                }
+              }
+            }],
+            "stream": true
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "StreamParser",
+        "input": "${response.body}",
+        "config": {
+          "format": "sse-openai"
+        },
+        "output": {
+          "text": "message",
+          "toolCalls": "tools",
+          "metadata": "meta"
+        }
+      },
+      {
+        "block": "ValidateTools",
+        "input": {
+          "from": "tools",
+          "as": "toolCalls"
+        },
+        "config": {
+          "expected": ["search_users"]
+        },
+        "output": "validation"
+      }
+    ],
+    "assertions": {
+      "response.status": 200,
+      "validation.passed": true,
+      "tools[0].name": "search_users"
+    }
+  }]
+}
+```
+
+### Vercel AI SDK Stream
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${APP_URL}/api/chat",
+        "method": "POST",
+        "body": {
+          "messages": [{
+            "role": "user",
+            "content": "What's the weather?"
+          }]
+        }
+      },
+      "output": "response"
+    },
+    {
+      "block": "StreamParser",
+      "input": "${response.body}",
+      "config": {
+        "format": "sse-vercel"
+      },
+      "output": {
+        "text": "aiMessage",
+        "toolCalls": "tools",
+        "metadata": "streamInfo"
+      }
+    }
+  ],
+  "assertions": {
+    "aiMessage": { "contains": "weather" },
+    "tools": { "contains": "get_weather" }
+  }
+}
+```
+
+### Multi-Turn Conversation
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "first-message",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${AI_URL}/chat",
+        "method": "POST",
+        "body": {
+          "messages": [{
+            "role": "user",
+            "content": "Hello!"
+          }]
+        }
+      },
+      "output": "response1"
+    },
+    {
+      "id": "parse1",
+      "block": "StreamParser",
+      "input": "${response1.body}",
+      "config": { "format": "sse-openai" },
+      "output": { "text": "message1" }
+    },
+    {
+      "id": "second-message",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${AI_URL}/chat",
+        "method": "POST",
+        "body": {
+          "messages": [
+            { "role": "user", "content": "Hello!" },
+            { "role": "assistant", "content": "${message1}" },
+            { "role": "user", "content": "Tell me a joke" }
+          ]
+        }
+      },
+      "output": "response2"
+    },
+    {
+      "id": "parse2",
+      "block": "StreamParser",
+      "input": "${response2.body}",
+      "config": { "format": "sse-openai" },
+      "output": { "text": "message2" }
+    }
+  ],
+  "assertions": {
+    "message1": { "matches": ".+" },
+    "message2": { "matches": ".+" }
+  }
+}
+```
+
+## Stream Metadata
+
+The `metadata` output includes useful information:
+
+```javascript
+{
+  format: "sse-openai",
+  totalChunks: 15,
+  totalTools: 2,
+  toolErrorCount: 0  // Vercel format only
+}
+```
+
+Use for debugging or assertions:
+
+```json
+{
+  "assertions": {
+    "streamMeta.totalChunks": { "gt": 0 },
+    "streamMeta.totalTools": { "gt": 0 }
+  }
+}
+```
+
+## Chunks Array
+
+The `chunks` array contains individual stream events:
+
+```javascript
+[
+  { type: "text", content: "Hello" },
+  { type: "text", content: " there" },
+  { type: "tool-call", toolCallId: "123", toolName: "search" },
+  { type: "finish", reason: "stop" }
+]
+```
+
+Useful for debugging stream parsing issues.
+
+## Error Handling
+
+If parsing fails, StreamParser returns empty data:
+
+```javascript
+{
+  text: "",
+  toolCalls: [],
+  chunks: [],
+  metadata: { format: "sse-openai", error: "Parse error message" }
+}
+```
+
+Check for errors:
+
+```json
+{
+  "assertions": {
+    "streamMeta.error": null
+  }
+}
+```
+
+## Custom Parsers
+
+You can register custom parsers programmatically:
+
+```javascript
+import { StreamParser } from '@blade47/semantic-test';
+
+function parseCustomFormat(body) {
+  // Parse your custom format
+  return {
+    text: "parsed text",
+    toolCalls: [],
+    chunks: [],
+    metadata: { format: "custom" }
+  };
+}
+
+StreamParser.register('custom', parseCustomFormat);
+```
+
+Then use in tests:
+
+```json
+{
+  "config": {
+    "format": "custom"
+  }
+}
+```
+
+## Full Example
+
+```json
+{
+  "name": "AI Agent Stream Test",
+  "context": {
+    "AI_URL": "${env.AI_API_URL}",
+    "API_KEY": "${env.API_KEY}"
+  },
+  "tests": [{
+    "id": "test-streaming-agent",
+    "pipeline": [
+      {
+        "id": "call-agent",
+        "block": "HttpRequest",
+        "input": {
+          "url": "${AI_URL}/chat",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer ${API_KEY}"
+          },
+          "body": {
+            "messages": [{
+              "role": "user",
+              "content": "Search for users named Alice and send them an email"
+            }],
+            "tools": [
+              { "name": "search_users" },
+              { "name": "send_email" }
+            ],
+            "stream": true
+          }
+        },
+        "output": "response"
+      },
+      {
+        "id": "parse",
+        "block": "StreamParser",
+        "input": "${response.body}",
+        "config": {
+          "format": "sse-openai"
+        },
+        "output": {
+          "text": "aiMessage",
+          "toolCalls": "tools",
+          "chunks": "streamChunks",
+          "metadata": "meta"
+        }
+      },
+      {
+        "id": "validate-message",
+        "block": "ValidateContent",
+        "input": {
+          "from": "aiMessage",
+          "as": "text"
+        },
+        "config": {
+          "contains": ["Alice", "email"]
+        },
+        "output": "contentCheck"
+      },
+      {
+        "id": "validate-tools",
+        "block": "ValidateTools",
+        "input": {
+          "from": "tools",
+          "as": "toolCalls"
+        },
+        "config": {
+          "expected": ["search_users", "send_email"],
+          "order": ["search_users", "send_email"]
+        },
+        "output": "toolCheck"
+      }
+    ],
+    "assertions": {
+      "response.status": 200,
+      "aiMessage": { "matches": ".+" },
+      "contentCheck.passed": true,
+      "toolCheck.passed": true,
+      "meta.totalTools": 2
+    }
+  }]
+}
+```
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Use Object Output Format">
+    Map outputs to descriptive names:
+
+    ```json
+    {
+      "output": {
+        "text": "aiMessage",
+        "toolCalls": "tools"
+      }
+    }
+    ```
+
+    Then access as `${aiMessage}` and `${tools}`.
+  </Accordion>
+
+  <Accordion title="Choose the Right Format">
+    - `sse-openai` - For OpenAI, Azure OpenAI
+    - `sse-vercel` - For Vercel AI SDK apps
+    - `sse` - For generic SSE streams
+  </Accordion>
+
+  <Accordion title="Always Validate Tool Calls">
+    Combine with ValidateTools:
+
+    ```json
+    {
+      "pipeline": [
+        { "block": "HttpRequest", "output": "response" },
+        {
+          "block": "StreamParser",
+          "input": "${response.body}",
+          "output": { "toolCalls": "tools" }
+        },
+        {
+          "block": "ValidateTools",
+          "input": { "from": "tools", "as": "toolCalls" },
+          "output": "validation"
+        }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Debug with Chunks">
+    Output chunks for debugging stream issues:
+
+    ```json
+    {
+      "output": {
+        "text": "message",
+        "chunks": "debugChunks"
+      }
+    }
+    ```
+
+    Then inspect `${debugChunks}` to see individual events.
+  </Accordion>
+</AccordionGroup>
+
+## When to Use
+
+**Use StreamParser when:**
+- Parsing streaming responses from AI APIs
+- Extracting tool calls from function-calling models
+- Testing real-time AI responses
+- Working with Server-Sent Events (SSE)
+
+**Don't use when:**
+- Response is regular JSON (use JsonParser)
+- Non-streaming HTTP response
+- Testing non-AI APIs
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="ValidateTools"
+    icon="wrench"
+    href="/blocks/validate-tools"
+  >
+    Validate extracted tool calls
+  </Card>
+  <Card
+    title="LLMJudge"
+    icon="gavel"
+    href="/blocks/llm-judge"
+  >
+    Validate AI message quality
+  </Card>
+</CardGroup>

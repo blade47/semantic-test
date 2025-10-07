@@ -1,0 +1,151 @@
+---
+title: Introduction
+description: 'A composable, pipeline-based testing framework for AI systems and APIs'
+icon: 'house'
+---
+
+## Why SemanticTest?
+
+Testing AI systems is hard. Responses are non-deterministic, you need to validate tool usage, and semantic meaning matters more than exact text matching.
+
+SemanticTest solves this with:
+
+<CardGroup cols={2}>
+  <Card
+    title="Composable Blocks"
+    icon="cubes"
+    href="/blocks/overview"
+  >
+    Build complex test scenarios using simple, reusable blocks for HTTP, parsing, validation, and AI evaluation
+  </Card>
+  <Card
+    title="Pipeline Architecture"
+    icon="diagram-project"
+    href="/concepts/pipelines"
+  >
+    Data flows through named slots, making tests readable and maintainable
+  </Card>
+  <Card
+    title="LLM Judge"
+    icon="gavel"
+    href="/blocks/llm-judge"
+  >
+    Evaluate responses semantically using AI instead of exact text matching
+  </Card>
+  <Card
+    title="JSON Test Definitions"
+    icon="code"
+    href="/quickstart"
+  >
+    Version-controllable, readable test definitions that anyone can understand
+  </Card>
+</CardGroup>
+
+## Quick Example
+
+Here's a simple test that validates an API response semantically:
+
+```json
+{
+  "name": "User API Test",
+  "tests": [{
+    "id": "get-user",
+    "pipeline": [
+      {
+        "id": "request",
+        "block": "HttpRequest",
+        "input": {
+          "url": "https://api.example.com/users/1",
+          "method": "GET"
+        },
+        "output": "response"
+      },
+      {
+        "id": "judge",
+        "block": "LLMJudge",
+        "input": {
+          "text": "${response.body}",
+          "expected": {
+            "expectedBehavior": "Should return user information with name and email"
+          }
+        },
+        "output": "validation"
+      }
+    ],
+    "assertions": {
+      "response.status": 200,
+      "validation.score": { "gt": 0.7 }
+    }
+  }]
+}
+```
+
+## What Makes It Different?
+
+<AccordionGroup>
+  <Accordion title="No More Fragile Exact Matching">
+    Instead of exact text matching, SemanticTest uses AI to understand the **meaning** of responses. "2:00 PM", "2 PM", "14:00", and "two in the afternoon" are all semantically equivalent.
+  </Accordion>
+
+  <Accordion title="Built for AI Systems">
+    Test tool calls, streaming responses, multi-turn conversations, and non-deterministic outputs with confidence.
+  </Accordion>
+
+  <Accordion title="Composable & Extensible">
+    Mix and match 8 built-in blocks or create your own custom blocks. Each block does one thing well.
+  </Accordion>
+
+  <Accordion title="No Vendor Lock-in">
+    100% open source, runs locally, works with any LLM provider. You control your data and costs.
+  </Accordion>
+</AccordionGroup>
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="AI Agent Testing" icon="robot">
+    Test AI agents that use tools, make decisions, and maintain conversations
+  </Card>
+  <Card title="API Testing" icon="server">
+    Traditional REST API testing with powerful validation and semantic checks
+  </Card>
+  <Card title="Streaming Responses" icon="wave-pulse">
+    Parse and validate streaming SSE responses from OpenAI, Vercel AI SDK, and more
+  </Card>
+  <Card title="Integration Testing" icon="link">
+    Test complex workflows with multiple API calls, data transformations, and validations
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get started in 30 seconds
+  </Card>
+  <Card
+    title="Core Concepts"
+    icon="book"
+    href="/concepts/pipelines"
+  >
+    Understand how SemanticTest works
+  </Card>
+  <Card
+    title="Browse Blocks"
+    icon="cube"
+    href="/blocks/overview"
+  >
+    Explore all available building blocks
+  </Card>
+  <Card
+    title="View Examples"
+    icon="code"
+    href="/examples/basic-api-test"
+  >
+    Learn from real-world examples
+  </Card>
+</CardGroup>

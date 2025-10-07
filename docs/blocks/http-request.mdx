@@ -1,0 +1,425 @@
+---
+title: 'HttpRequest'
+description: 'Make HTTP requests to APIs and web services'
+icon: 'globe'
+---
+
+## Overview
+
+The **HttpRequest** block makes HTTP requests and returns the response. It supports all HTTP methods, headers, query parameters, and automatic JSON serialization.
+
+```json
+{
+  "block": "HttpRequest",
+  "input": {
+    "url": "https://api.example.com/users",
+    "method": "GET"
+  },
+  "output": "response"
+}
+```
+
+## Input Parameters
+
+### Required
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `url` | string | The URL to request |
+| `method` | string | HTTP method (GET, POST, PUT, DELETE, PATCH, etc.) |
+
+### Optional
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `headers` | object | `{}` | HTTP headers to send |
+| `body` | string/object | - | Request body (auto-serialized if object) |
+| `query` | object | - | Query parameters to append to URL |
+| `timeout` | number | `30000` | Request timeout in milliseconds |
+
+## Output Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | number | HTTP status code (200, 404, etc.) |
+| `headers` | object | Response headers |
+| `body` | string | Response body as text |
+| `duration` | number | Request duration in milliseconds |
+| `url` | string | Final URL (with query params if any) |
+
+## Examples
+
+### Simple GET Request
+
+```json
+{
+  "block": "HttpRequest",
+  "input": {
+    "url": "https://api.example.com/users/1",
+    "method": "GET"
+  },
+  "output": "response"
+}
+```
+
+**Output:**
+```javascript
+{
+  status: 200,
+  headers: { "content-type": "application/json" },
+  body: '{"id": 1, "name": "John"}',
+  duration: 245,
+  url: "https://api.example.com/users/1"
+}
+```
+
+### POST with JSON Body
+
+```json
+{
+  "block": "HttpRequest",
+  "input": {
+    "url": "https://api.example.com/users",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer ${token}"
+    },
+    "body": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  },
+  "output": "createResponse"
+}
+```
+
+**Notes:**
+- Object bodies are automatically JSON-serialized
+- `Content-Type: application/json` is automatically added
+
+### GET with Query Parameters
+
+```json
+{
+  "block": "HttpRequest",
+  "input": {
+    "url": "https://api.example.com/users",
+    "method": "GET",
+    "query": {
+      "page": "2",
+      "limit": "10",
+      "sort": "name"
+    }
+  },
+  "output": "response"
+}
+```
+
+**Final URL:** `https://api.example.com/users?page=2&limit=10&sort=name`
+
+### PUT with String Body
+
+```json
+{
+  "block": "HttpRequest",
+  "input": {
+    "url": "https://api.example.com/data",
+    "method": "PUT",
+    "headers": {
+      "Content-Type": "text/plain"
+    },
+    "body": "Raw text content"
+  },
+  "output": "response"
+}
+```
+
+### Custom Timeout
+
+```json
+{
+  "block": "HttpRequest",
+  "input": {
+    "url": "https://api.example.com/slow-endpoint",
+    "method": "GET",
+    "timeout": 60000
+  },
+  "output": "response"
+}
+```
+
+## Common Patterns
+
+### API Authentication
+
+<Tabs>
+  <Tab title="Bearer Token">
+    ```json
+    {
+      "input": {
+        "url": "${BASE_URL}/protected",
+        "method": "GET",
+        "headers": {
+          "Authorization": "Bearer ${authToken}"
+        }
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="API Key">
+    ```json
+    {
+      "input": {
+        "url": "${BASE_URL}/data",
+        "method": "GET",
+        "headers": {
+          "X-API-Key": "${env.API_KEY}"
+        }
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Basic Auth">
+    ```json
+    {
+      "input": {
+        "url": "${BASE_URL}/secure",
+        "method": "GET",
+        "headers": {
+          "Authorization": "Basic ${base64Credentials}"
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### REST Operations
+
+<Tabs>
+  <Tab title="Create (POST)">
+    ```json
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/users",
+        "method": "POST",
+        "body": {
+          "name": "John",
+          "email": "john@example.com"
+        }
+      },
+      "output": "created"
+    }
+    ```
+  </Tab>
+
+  <Tab title="Read (GET)">
+    ```json
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/users/${userId}",
+        "method": "GET"
+      },
+      "output": "user"
+    }
+    ```
+  </Tab>
+
+  <Tab title="Update (PUT)">
+    ```json
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/users/${userId}",
+        "method": "PUT",
+        "body": {
+          "name": "John Updated"
+        }
+      },
+      "output": "updated"
+    }
+    ```
+  </Tab>
+
+  <Tab title="Delete (DELETE)">
+    ```json
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/users/${userId}",
+        "method": "DELETE"
+      },
+      "output": "deleted"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Error Handling
+
+The block returns an error if the request fails:
+
+```javascript
+{
+  error: "Failed to fetch",
+  status: 0,
+  duration: 1234,
+  url: "https://api.example.com/users"
+}
+```
+
+**Common errors:**
+- Network errors (connection refused, DNS failure)
+- Timeout errors (request took longer than `timeout` ms)
+- Invalid URL errors
+
+**Note:** HTTP error status codes (4xx, 5xx) are **not** treated as errors. Check the `status` field in assertions:
+
+```json
+{
+  "assertions": {
+    "response.status": 200
+  }
+}
+```
+
+## Full Example
+
+```json
+{
+  "name": "User API Test",
+  "context": {
+    "BASE_URL": "https://api.example.com",
+    "API_KEY": "${env.API_KEY}"
+  },
+  "tests": [{
+    "id": "create-user",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "${BASE_URL}/users",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer ${API_KEY}",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "name": "John Doe",
+            "email": "john@example.com",
+            "role": "admin"
+          },
+          "timeout": 5000
+        },
+        "output": "createResponse"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${createResponse.body}",
+        "output": {
+          "parsed": "newUser"
+        }
+      }
+    ],
+    "assertions": {
+      "createResponse.status": 201,
+      "newUser.id": { "gt": 0 },
+      "newUser.email": "john@example.com"
+    }
+  }]
+}
+```
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Always Parse JSON Responses">
+    HttpRequest returns `body` as text. Use JsonParser to parse it:
+
+    ```json
+    {
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "output": "response"
+        },
+        {
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": { "parsed": "data" }
+        }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use Context for Base URLs">
+    Store base URLs in context to avoid repetition:
+
+    ```json
+    {
+      "context": {
+        "BASE_URL": "${env.API_URL}",
+        "API_KEY": "${env.API_KEY}"
+      },
+      "tests": [{
+        "pipeline": [{
+          "block": "HttpRequest",
+          "input": {
+            "url": "${BASE_URL}/endpoint"
+          }
+        }]
+      }]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Check Status in Assertions">
+    Don't rely on errors for HTTP status codes:
+
+    ```json
+    {
+      "assertions": {
+        "response.status": { "lt": 400 }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Increase Timeout for Slow Endpoints">
+    Default timeout is 30 seconds. Increase if needed:
+
+    ```json
+    {
+      "input": {
+        "url": "${BASE_URL}/slow",
+        "method": "GET",
+        "timeout": 120000
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="JsonParser"
+    icon="brackets-curly"
+    href="/blocks/json-parser"
+  >
+    Parse JSON responses
+  </Card>
+  <Card
+    title="StreamParser"
+    icon="wave-pulse"
+    href="/blocks/stream-parser"
+  >
+    Parse streaming responses
+  </Card>
+</CardGroup>

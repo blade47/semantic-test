@@ -7,6 +7,7 @@ import { getPath } from './utils/path.js';
 import { logger } from './utils/logger.js';
 import { measureTime } from './utils/timing.js';
 import { SEPARATORS } from './utils/constants.js';
+import { evaluateOperator, formatCondition } from './utils/conditions.js';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
@@ -18,37 +19,6 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Assertion check functions (reused from runner.js)
-const ASSERTION_CHECKS = {
-  equals: (actual, expected) => actual === expected,
-  contains: (actual, expected) => {
-    if (typeof actual === 'string' || Array.isArray(actual)) {
-      return actual.includes(expected);
-    }
-    return false;
-  },
-  gt: (actual, expected) => actual > expected,
-  lt: (actual, expected) => actual < expected,
-  matches: (actual, pattern) => {
-    if (typeof actual === 'string') {
-      return new RegExp(pattern).test(actual);
-    }
-    return false;
-  }
-};
-
-// Format assertion messages
-const formatAssertionMessage = (assertPath, type, value) => {
-  const formats = {
-    equals: `${assertPath} === ${value}`,
-    contains: `${assertPath} contains "${value}"`,
-    gt: `${assertPath} > ${value}`,
-    lt: `${assertPath} < ${value}`,
-    matches: `${assertPath} matches /${value}/`
-  };
-  return formats[type] || `${assertPath} ${type} ${value}`;
-};
 
 /**
  * Suite Runner - Runs test suites with shared setup/teardown
@@ -256,16 +226,28 @@ class SuiteRunner {
       let passed = false;
       let message = '';
 
-      if (typeof expected === 'object' && expected !== null) {
-        // Complex assertion
+      if (typeof expected === 'object' && expected !== null && !Array.isArray(expected)) {
+        // Complex assertion with operators
         const messages = [];
         passed = true;
 
-        for (const [type, value] of Object.entries(expected)) {
-          if (ASSERTION_CHECKS[type]) {
-            const checkPassed = ASSERTION_CHECKS[type](actual, value);
+        for (const [operator, value] of Object.entries(expected)) {
+          try {
+            // For operators that don't need a value, any truthy value means "check this"
+            const checkPassed = evaluateOperator(actual, operator, value);
             if (!checkPassed) passed = false;
-            messages.push(formatAssertionMessage(assertPath, type, value));
+
+            // Format message using conditions formatter
+            // For no-value operators, formatCondition already handles it correctly
+            messages.push(formatCondition({
+              path: assertPath,
+              operator,
+              value
+            }));
+          } catch (error) {
+            // Unknown operator or error - fail the assertion
+            passed = false;
+            messages.push(`${assertPath} ${operator} ${value} (error: ${error.message})`);
           }
         }
 
@@ -273,7 +255,7 @@ class SuiteRunner {
       } else {
         // Simple equality
         passed = actual === expected;
-        message = `${assertPath} === ${expected}`;
+        message = `${assertPath} === ${JSON.stringify(expected)}`;
       }
 
       checks.push({

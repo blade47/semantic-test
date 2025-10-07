@@ -1,0 +1,718 @@
+---
+title: 'Semantic Validation'
+description: 'Use AI to evaluate AI responses with LLMJudge'
+icon: 'gavel'
+---
+
+## What is Semantic Validation?
+
+**Semantic validation** means checking if a response is *correct in meaning*, not just in exact wording.
+
+### The Problem
+
+```json
+// User asks: "Schedule a meeting for tomorrow at 2pm"
+
+// All these responses are semantically correct:
+"✅ I've scheduled your meeting for 2:00 PM tomorrow"
+"✅ Done! Your 2pm meeting is set for tomorrow"
+"✅ Meeting booked: Tomorrow at 14:00"
+"✅ Your meeting tomorrow at 2 is confirmed"
+
+// Traditional exact matching fails on all but one ❌
+```
+
+### The Solution: LLMJudge
+
+**LLMJudge** uses OpenAI models to evaluate whether responses meet your semantic requirements:
+
+```json
+{
+  "block": "LLMJudge",
+  "input": {
+    "text": "${aiResponse.text}",
+    "expected": {
+      "expectedBehavior": "Confirms meeting scheduled for 2pm tomorrow"
+    }
+  },
+  "output": "judgement"
+}
+```
+
+**Output:**
+```javascript
+{
+  score: 0.95,
+  passed: true,
+  reasoning: "Response clearly confirms meeting time (2pm) and date (tomorrow)"
+}
+```
+
+## When to Use LLMJudge
+
+<Tabs>
+  <Tab title="✅ Use LLMJudge">
+    **Non-deterministic text content:**
+    - AI chat responses
+    - Generated summaries
+    - Creative content
+    - Explanations
+    - Natural language descriptions
+
+    **Example:**
+    ```json
+    {
+      "block": "LLMJudge",
+      "input": {
+        "text": "${aiResponse}",
+        "expected": {
+          "expectedBehavior": "Explains the concept clearly in simple terms"
+        }
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="❌ Don't Use LLMJudge">
+    **Deterministic or structured data:**
+    - Status codes
+    - IDs, timestamps
+    - Exact numbers
+    - Boolean flags
+    - JSON structure
+
+    **Use traditional assertions instead:**
+    ```json
+    {
+      "assertions": {
+        "response.status": 200,
+        "user.id": { "gt": 0 },
+        "order.total": 99.99
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Setup
+
+### 1. Get OpenAI API Key
+
+Sign up at [platform.openai.com](https://platform.openai.com) and create an API key.
+
+### 2. Set Environment Variable
+
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+Or use a `.env` file:
+```bash
+# .env
+OPENAI_API_KEY=sk-...
+```
+
+<Note>
+  **Cost:** LLMJudge uses GPT-4o-mini by default (~$0.0001 per evaluation). A typical test with 10 AI responses costs ~$0.001.
+</Note>
+
+## Basic Usage
+
+### Simple Validation
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${AI_API}/chat",
+        "method": "POST",
+        "body": {
+          "message": "What's the capital of France?"
+        }
+      },
+      "output": "response"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": { "parsed": "data" }
+    },
+    {
+      "block": "LLMJudge",
+      "input": {
+        "text": "${data.message}",
+        "expected": {
+          "expectedBehavior": "States that Paris is the capital of France"
+        }
+      },
+      "output": "judgement"
+    }
+  ],
+  "assertions": {
+    "judgement.score": { "gt": 0.8 }
+  }
+}
+```
+
+## Expected Behavior Format
+
+### Be Specific
+
+<Tabs>
+  <Tab title="❌ Vague">
+    ```json
+    {
+      "expectedBehavior": "Good response"
+    }
+    ```
+    Too vague - what makes a response "good"?
+  </Tab>
+
+  <Tab title="✅ Specific">
+    ```json
+    {
+      "expectedBehavior": "Confirms order #12345 is shipped, provides FedEx tracking number, and estimates delivery within 3-5 business days"
+    }
+    ```
+    Clear, measurable criteria.
+  </Tab>
+</Tabs>
+
+### Include Key Details
+
+```json
+{
+  "expectedBehavior": "Explains the difference between REST and GraphQL APIs, mentioning at least: request/response structure, over-fetching, and type safety"
+}
+```
+
+### Use Action Verbs
+
+Good verbs: confirms, explains, lists, mentions, asks, provides, includes, summarizes
+
+```json
+{
+  "expectedBehavior": "Lists 3-5 main advantages of TypeScript over JavaScript"
+}
+```
+
+## Custom Scoring Criteria
+
+Define your own scoring dimensions:
+
+```json
+{
+  "block": "LLMJudge",
+  "input": {
+    "text": "${aiResponse}",
+    "expected": {
+      "expectedBehavior": "Helpful customer service response"
+    }
+  },
+  "config": {
+    "criteria": {
+      "accuracy": 0.5,
+      "completeness": 0.3,
+      "relevance": 0.2
+    }
+  },
+  "output": "judgement"
+}
+```
+
+**Output:**
+```javascript
+{
+  score: 0.87,
+  reasoning: "Response is accurate and complete...",
+  details: {
+    accuracy: 0.9,
+    completeness: 0.85,
+    relevance: 0.87
+  }
+}
+```
+
+<Note>
+  **Weights must sum to 1.0**
+</Note>
+
+### Available Criteria
+
+LLMJudge supports three scoring criteria. You can adjust their weights:
+
+```json
+{
+  "config": {
+    "criteria": {
+      "accuracy": 0.4,      // How correct is the response? (default: 0.4)
+      "completeness": 0.3,  // Does it cover all required points? (default: 0.3)
+      "relevance": 0.3      // Is it relevant to the question? (default: 0.3)
+    }
+  }
+}
+```
+
+<Note>
+  **Weights must sum to 1.0.** The three criteria are hardcoded and cannot be customized, but you can adjust their relative importance by changing the weights.
+</Note>
+
+### Example Weight Adjustments
+
+<Tabs>
+  <Tab title="Prioritize Accuracy">
+    ```json
+    {
+      "criteria": {
+        "accuracy": 0.6,
+        "completeness": 0.2,
+        "relevance": 0.2
+      }
+    }
+    ```
+    Use when correctness is most important (e.g., factual questions).
+  </Tab>
+
+  <Tab title="Balanced">
+    ```json
+    {
+      "criteria": {
+        "accuracy": 0.4,
+        "completeness": 0.3,
+        "relevance": 0.3
+      }
+    }
+    ```
+    Default balanced approach for general use.
+  </Tab>
+
+  <Tab title="Prioritize Completeness">
+    ```json
+    {
+      "criteria": {
+        "accuracy": 0.3,
+        "completeness": 0.5,
+        "relevance": 0.2
+      }
+    }
+    ```
+    Use when covering all points is critical (e.g., instructions, summaries).
+  </Tab>
+</Tabs>
+
+## Model Selection
+
+Choose the right model for your use case:
+
+```json
+{
+  "config": {
+    "model": "gpt-4o-mini"  // or "gpt-4o", "gpt-4-turbo"
+  }
+}
+```
+
+### Model Comparison
+
+| Model | Speed | Cost | Accuracy | Use Case |
+|-------|-------|------|----------|----------|
+| **gpt-4o-mini** | ⚡ Fast | 💰 $0.0001 | ⭐⭐⭐ Good | **Recommended** - Fast, cheap, accurate |
+| **gpt-4o** | ⚡ Fast | 💰💰 $0.0025 | ⭐⭐⭐⭐ Better | Complex evaluations |
+| **gpt-4-turbo** | 🐌 Slower | 💰💰💰 $0.01 | ⭐⭐⭐⭐⭐ Best | Critical validations |
+
+<Tip>
+  **Start with gpt-4o-mini.** It's 25x cheaper than gpt-4-turbo and handles 95% of use cases well.
+</Tip>
+
+## Real-World Examples
+
+### 1. Testing ChatGPT-Style Interface
+
+```json
+{
+  "name": "Chatbot Quality Test",
+  "context": {
+    "CHAT_URL": "${env.CHAT_API_URL}"
+  },
+  "tests": [{
+    "id": "test-helpful-response",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "${CHAT_URL}/chat",
+          "method": "POST",
+          "body": {
+            "message": "How do I reset my password?"
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": { "parsed": "data" }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${data.reply}",
+          "expected": {
+            "expectedBehavior": "Provides clear step-by-step instructions to reset password, mentioning the settings or account page, being polite and helpful, and not asking for current password in chat"
+          }
+        },
+        "config": {
+          "criteria": {
+            "accuracy": 0.4,
+            "completeness": 0.4,
+            "relevance": 0.2
+          }
+        },
+        "output": "judgement"
+      }
+    ],
+    "assertions": {
+      "response.status": 200,
+      "judgement.score": { "gte": 0.8 },
+      "judgement.details.completeness": { "gte": 0.7 }
+    }
+  }]
+}
+```
+
+### 2. Testing Content Summarization
+
+```json
+{
+  "tests": [{
+    "id": "test-article-summary",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "${AI_API}/summarize",
+          "method": "POST",
+          "body": {
+            "text": "Long article text here...",
+            "maxLength": 100
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": { "parsed": "data" }
+      },
+      {
+        "block": "ValidateContent",
+        "input": {
+          "from": "data.summary",
+          "as": "text"
+        },
+        "config": {
+          "maxLength": 120
+        },
+        "output": "lengthCheck"
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${data.summary}",
+          "expected": {
+            "expectedBehavior": "Captures the main points: company revenue growth, new product launch, and market expansion plans"
+          }
+        },
+        "output": "judgement"
+      }
+    ],
+    "assertions": {
+      "lengthCheck.passed": true,
+      "judgement.score": { "gt": 0.85 }
+    }
+  }]
+}
+```
+
+### 3. Testing Code Generation
+
+```json
+{
+  "tests": [{
+    "id": "test-code-explanation",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "${AI_API}/explain-code",
+          "method": "POST",
+          "body": {
+            "code": "const sum = arr => arr.reduce((a,b) => a+b, 0)",
+            "language": "javascript"
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": { "parsed": "data" }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${data.explanation}",
+          "expected": {
+            "expectedBehavior": "Explains that the code sums array elements using reduce, mentioning the accumulator pattern in a beginner-friendly way, explaining the reduce function and the initial value (0)"
+          }
+        },
+        "config": {
+          "criteria": {
+            "accuracy": 0.5,
+            "completeness": 0.3,
+            "relevance": 0.2
+          }
+        },
+        "output": "judgement"
+      }
+    ],
+    "assertions": {
+      "judgement.details.accuracy": { "gte": 0.9 }
+    }
+  }]
+}
+```
+
+## Cost Optimization
+
+LLMJudge makes API calls to OpenAI. Here's how to minimize costs:
+
+### 1. Use gpt-4o-mini
+
+```json
+{
+  "config": {
+    "model": "gpt-4o-mini"  // 25x cheaper than gpt-4-turbo
+  }
+}
+```
+
+**Savings:** ~$0.99 per 100 evaluations vs $25 with gpt-4-turbo
+
+### 2. Combine with Traditional Validation
+
+Don't use LLMJudge for everything:
+
+```json
+{
+  "pipeline": [
+    // Fast, free structural checks first
+    {
+      "block": "ValidateContent",
+      "config": {
+        "minLength": 10,
+        "contains": ["order", "confirmed"]
+      }
+    },
+    // Then semantic validation
+    {
+      "block": "LLMJudge",
+      "input": {
+        "expected": {
+          "expectedBehavior": "Professional and reassuring tone"
+        }
+      }
+    }
+  ]
+}
+```
+
+### 3. Cache Common Validations
+
+If testing same AI responses repeatedly during development:
+
+```bash
+# Run once, save results
+npx semtest tests.json --html --output results.html
+
+# Review results.html instead of re-running
+```
+
+### 4. Test Samples in CI/CD
+
+```json
+{
+  "tests": [
+    {
+      "id": "quick-smoke-test",
+      "pipeline": [
+        // Test 1 representative example
+      ]
+    }
+  ]
+}
+```
+
+Run full suite less frequently (nightly builds).
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Be Specific in Expected Behavior">
+    ```json
+    // ❌ Too vague
+    "expectedBehavior": "Good answer"
+
+    // ✅ Specific and measurable
+    "expectedBehavior": "Lists 3-5 benefits of exercise, mentions both physical and mental health"
+    ```
+  </Accordion>
+
+  <Accordion title="2. Be Specific About Requirements">
+    ```json
+    {
+      "expected": {
+        "expectedBehavior": "Provides medical information including a disclaimer to consult a doctor. Must not diagnose conditions or prescribe medications, only provide general health information."
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="3. Set Appropriate Score Thresholds">
+    ```json
+    {
+      "assertions": {
+        // Strict for critical features
+        "criticalCheck.score": { "gte": 0.95 },
+
+        // Lenient for nice-to-haves
+        "toneCheck.score": { "gte": 0.7 }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="4. Combine Multiple Validation Types">
+    ```json
+    {
+      "pipeline": [
+        // Structure check (free, fast)
+        { "block": "ValidateContent", "config": { "contains": "order" } },
+
+        // Tool validation (free, fast)
+        { "block": "ValidateTools", "config": { "expected": ["send_email"] } },
+
+        // Semantic validation (costs $, slower)
+        { "block": "LLMJudge", "input": { "expected": {...} } }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="5. Include Context When Needed">
+    For conversations, pass history:
+
+    ```json
+    {
+      "block": "LLMJudge",
+      "input": {
+        "text": "${aiResponse}",
+        "history": [
+          { "role": "user", "content": "I'm looking for a laptop" },
+          { "role": "assistant", "content": "What's your budget?" },
+          { "role": "user", "content": "Around $1000" }
+        ],
+        "expected": {
+          "expectedBehavior": "Recommends laptops in $800-1200 range"
+        }
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### Low Scores Despite Good Responses
+
+**Problem:** judgement.score is 0.6 but response looks good
+
+**Solutions:**
+1. Make expectedBehavior more specific
+2. Lower score threshold: `{ "gte": 0.7 }` instead of `{ "gte": 0.9 }`
+3. Check if response actually meets expectations
+
+### High Costs
+
+**Problem:** Test suite costs $5+ per run
+
+**Solutions:**
+1. Switch to gpt-4o-mini
+2. Use traditional validation where possible
+3. Test fewer examples in CI
+4. Cache results during development
+
+### Inconsistent Scores
+
+**Problem:** Same response gets different scores (0.85, then 0.78, then 0.92)
+
+**Solution:** This is normal with AI. Set threshold ranges:
+```json
+{
+  "assertions": {
+    "judgement.score": { "gte": 0.75 }  // Allow some variance
+  }
+}
+```
+
+### Missing Context
+
+**Problem:** LLMJudge doesn't understand multi-turn conversation
+
+**Solution:** Pass conversation history:
+```json
+{
+  "input": {
+    "text": "${aiResponse}",
+    "history": [...previous messages...]
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Tool Call Validation"
+    icon="wrench"
+    href="/ai-testing/tool-calls"
+  >
+    Learn to validate AI tool/function calls
+  </Card>
+
+  <Card
+    title="Streaming Responses"
+    icon="wave-pulse"
+    href="/ai-testing/streaming-responses"
+  >
+    Parse and test SSE streams from AI APIs
+  </Card>
+
+  <Card
+    title="LLMJudge Block Reference"
+    icon="book"
+    href="/blocks/llm-judge"
+  >
+    Complete LLMJudge documentation
+  </Card>
+
+  <Card
+    title="AI Chat Example"
+    icon="comments"
+    href="/examples/ai-chat-test"
+  >
+    Full example testing OpenAI chat API
+  </Card>
+</CardGroup>

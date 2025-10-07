@@ -1,0 +1,329 @@
+---
+title: 'Input Formats'
+description: 'Three ways to pass data to blocks'
+icon: 'inbox'
+---
+
+## Overview
+
+SemanticTest supports **three different input formats** for passing data to blocks. This flexibility lets you write cleaner, more readable tests.
+
+## 1. String Format (Simple)
+
+Pass a single value from the DataBus:
+
+```json
+{
+  "block": "JsonParser",
+  "input": "${response.body}"
+}
+```
+
+**What happens:**
+- The value from `response.body` is wrapped in an object
+- Becomes: `{ body: "the actual value" }`
+- The block receives it as `inputs.body`
+
+**When to use:**
+- Single value input
+- Quick and simple syntax
+- Most common format
+
+## 2. From/As Format (Mapping)
+
+Map a DataBus slot to a specific parameter name:
+
+```json
+{
+  "block": "ValidateContent",
+  "input": {
+    "from": "parsed.message",
+    "as": "text"
+  }
+}
+```
+
+**What happens:**
+- Value from `parsed.message` is mapped to parameter `text`
+- The block receives it as `inputs.text`
+
+**When to use:**
+- Block expects a specific parameter name
+- You need to rename the data
+- More explicit about what data goes where
+
+**Example:**
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": { "url": "https://api.example.com/users" },
+      "output": "response"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": "parsed"
+    },
+    {
+      "block": "ValidateContent",
+      "input": {
+        "from": "parsed.users[0].email",
+        "as": "text"
+      },
+      "config": {
+        "matches": ".*@.*\\.com"
+      }
+    }
+  ]
+}
+```
+
+## 3. Object Format (Full Control)
+
+Pass multiple values with deep variable resolution:
+
+```json
+{
+  "block": "HttpRequest",
+  "input": {
+    "url": "${BASE_URL}/users",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer ${token}",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "name": "John Doe",
+      "email": "${userEmail}"
+    },
+    "timeout": 5000
+  }
+}
+```
+
+**What happens:**
+- All `${}` variables are resolved from the DataBus
+- The entire object is passed to the block
+- Nested objects are fully resolved
+
+**When to use:**
+- Multiple parameters needed
+- Complex nested data structures
+- Mix of static and dynamic values
+
+## Comparison
+
+<Tabs>
+  <Tab title="String Format">
+    ```json
+    // Simplest - single value
+    "input": "${response.body}"
+
+    // Block receives:
+    {
+      body: "actual response body content"
+    }
+    ```
+  </Tab>
+
+  <Tab title="From/As Format">
+    ```json
+    // Map to specific parameter
+    "input": {
+      "from": "response.body",
+      "as": "text"
+    }
+
+    // Block receives:
+    {
+      text: "actual response body content"
+    }
+    ```
+  </Tab>
+
+  <Tab title="Object Format">
+    ```json
+    // Full control
+    "input": {
+      "url": "${API_URL}",
+      "method": "POST",
+      "data": "${payload}"
+    }
+
+    // Block receives:
+    {
+      url: "https://api.example.com",
+      method: "POST",
+      data: { name: "John" }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Variable Resolution
+
+All formats support `${}` syntax for reading from the DataBus:
+
+```json
+// Simple property access
+"${response.status}"
+
+// Nested properties
+"${user.profile.email}"
+
+// Array access
+"${users[0].name}"
+
+// From context
+"${BASE_URL}"
+
+// From environment
+"${env.API_KEY}"
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use String Format for Simple Cases">
+    ```json
+    // Good - clear and simple
+    {
+      "block": "JsonParser",
+      "input": "${response.body}"
+    }
+
+    // Unnecessary complexity
+    {
+      "block": "JsonParser",
+      "input": {
+        "from": "response.body",
+        "as": "body"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use From/As When Names Matter">
+    ```json
+    // ValidateContent expects 'text' parameter
+    {
+      "block": "ValidateContent",
+      "input": {
+        "from": "response.message",
+        "as": "text"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use Object Format for Complex Blocks">
+    ```json
+    // HttpRequest needs multiple parameters
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/users",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer ${token}"
+        },
+        "body": {
+          "name": "${userName}",
+          "email": "${userEmail}"
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Don't Mix Formats">
+    ```json
+    // Bad - confusing
+    {
+      "input": {
+        "from": "response.body",
+        "as": "text",
+        "url": "${API_URL}"  // ❌ Mixing from/as with object format
+      }
+    }
+
+    // Good - use one format
+    {
+      "input": {
+        "text": "${response.body}",
+        "url": "${API_URL}"
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Common Patterns
+
+### API Requests with Auth
+
+```json
+{
+  "block": "HttpRequest",
+  "input": {
+    "url": "${BASE_URL}/protected",
+    "method": "GET",
+    "headers": {
+      "Authorization": "Bearer ${authToken}"
+    }
+  }
+}
+```
+
+### Validation with Specific Field
+
+```json
+{
+  "block": "ValidateContent",
+  "input": {
+    "from": "user.profile.bio",
+    "as": "text"
+  },
+  "config": {
+    "minLength": 10,
+    "maxLength": 500
+  }
+}
+```
+
+### Tool Validation
+
+```json
+{
+  "block": "ValidateTools",
+  "input": {
+    "from": "parsed.toolCalls",
+    "as": "toolCalls"
+  },
+  "config": {
+    "expected": ["search_database", "send_email"]
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Output Formats"
+    icon="box"
+    href="/concepts/output-formats"
+  >
+    Learn how blocks output data
+  </Card>
+  <Card
+    title="Data Flow"
+    icon="diagram-project"
+    href="/concepts/data-flow"
+  >
+    Understand the DataBus
+  </Card>
+</CardGroup>

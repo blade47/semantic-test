@@ -265,7 +265,9 @@ export class Pipeline {
     } else if (config.input && typeof config.input === 'object' && config.input.from) {
       // Format 2: Object with from/as keys
       logger.debug(`  Resolving from/as input: from='${config.input.from}' as='${config.input.as}'`);
-      const value = this.resolveValue(config.input.from);
+      // Treat 'from' as a direct path to look up in the DataBus
+      // This ensures undefined paths return undefined instead of the literal string
+      const value = this.dataBus.get(config.input.from);
       inputs = config.input.as ? { [config.input.as]: value } : value;
     } else if (config.input && typeof config.input === 'object') {
       // Format 3: Direct input object

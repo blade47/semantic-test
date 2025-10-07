@@ -1,0 +1,494 @@
+---
+title: 'ValidateContent'
+description: 'Validate text content against rules and patterns'
+icon: 'check'
+---
+
+## Overview
+
+The **ValidateContent** block validates text content against various rules like required substrings, forbidden words, length constraints, and regex patterns.
+
+```json
+{
+  "block": "ValidateContent",
+  "input": {
+    "from": "response.message",
+    "as": "text"
+  },
+  "config": {
+    "contains": ["hello", "world"]
+  },
+  "output": "validation"
+}
+```
+
+## Input Parameters
+
+### Required
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `text` | string | The text content to validate |
+
+**Note:** Use the `from`/`as` input format to map your data to the `text` parameter.
+
+## Configuration
+
+All config parameters are optional. Use the ones relevant to your validation:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `contains` | string/array | Required substring(s) - case insensitive |
+| `notContains` | string/array | Forbidden substring(s) - case insensitive |
+| `minLength` | number | Minimum text length |
+| `maxLength` | number | Maximum text length |
+| `matches` | string | Regex pattern the text must match |
+| `matchFlags` | string | Regex flags (default: `'i'` for case-insensitive) |
+
+## Output Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `passed` | boolean | Whether all validations passed |
+| `failures` | array | List of validation failures |
+| `score` | number | Validation score (0.0 - 1.0) |
+| `checks` | object | Individual check results |
+
+## Examples
+
+### Validate Required Keywords
+
+```json
+{
+  "block": "ValidateContent",
+  "input": {
+    "from": "aiResponse.message",
+    "as": "text"
+  },
+  "config": {
+    "contains": ["appointment", "time"]
+  },
+  "output": "validation"
+}
+```
+
+**Success:**
+```javascript
+{
+  passed: true,
+  failures: [],
+  score: 1.0,
+  checks: {
+    contains_appointment: true,
+    contains_time: true
+  }
+}
+```
+
+**Failure:**
+```javascript
+{
+  passed: false,
+  failures: ["Missing expected content: time"],
+  score: 0.5,
+  checks: {
+    contains_appointment: true,
+    contains_time: false
+  }
+}
+```
+
+### Forbid Inappropriate Content
+
+```json
+{
+  "block": "ValidateContent",
+  "input": {
+    "from": "userInput.comment",
+    "as": "text"
+  },
+  "config": {
+    "notContains": ["spam", "offensive", "inappropriate"]
+  },
+  "output": "validation"
+}
+```
+
+### Validate Text Length
+
+```json
+{
+  "block": "ValidateContent",
+  "input": {
+    "from": "user.bio",
+    "as": "text"
+  },
+  "config": {
+    "minLength": 10,
+    "maxLength": 500
+  },
+  "output": "validation"
+}
+```
+
+### Regex Pattern Matching
+
+```json
+{
+  "block": "ValidateContent",
+  "input": {
+    "from": "user.email",
+    "as": "text"
+  },
+  "config": {
+    "matches": "^[\\w.-]+@[\\w.-]+\\.\\w+$"
+  },
+  "output": "emailValidation"
+}
+```
+
+### Combined Validations
+
+```json
+{
+  "block": "ValidateContent",
+  "input": {
+    "from": "aiResponse.message",
+    "as": "text"
+  },
+  "config": {
+    "contains": ["meeting", "time"],
+    "notContains": ["error", "failed"],
+    "minLength": 20,
+    "maxLength": 500,
+    "matches": "\\d{1,2}:\\d{2}"
+  },
+  "output": "validation"
+}
+```
+
+## Common Patterns
+
+### Validate AI Response Quality
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${AI_API_URL}/chat",
+        "method": "POST",
+        "body": {
+          "message": "What time is the meeting?"
+        }
+      },
+      "output": "response"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": { "parsed": "aiResponse" }
+    },
+    {
+      "block": "ValidateContent",
+      "input": {
+        "from": "aiResponse.message",
+        "as": "text"
+      },
+      "config": {
+        "contains": ["meeting", "time"],
+        "minLength": 10
+      },
+      "output": "validation"
+    }
+  ],
+  "assertions": {
+    "validation.passed": true
+  }
+}
+```
+
+### Multi-Field Validation
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "MockData",
+      "config": {
+        "data": {
+          "name": "John Doe",
+          "email": "john@example.com",
+          "bio": "Software engineer"
+        }
+      },
+      "output": "user"
+    },
+    {
+      "id": "validate-name",
+      "block": "ValidateContent",
+      "input": {
+        "from": "user.name",
+        "as": "text"
+      },
+      "config": {
+        "minLength": 2,
+        "maxLength": 100
+      },
+      "output": "nameValidation"
+    },
+    {
+      "id": "validate-email",
+      "block": "ValidateContent",
+      "input": {
+        "from": "user.email",
+        "as": "text"
+      },
+      "config": {
+        "matches": ".*@.*\\..*"
+      },
+      "output": "emailValidation"
+    },
+    {
+      "id": "validate-bio",
+      "block": "ValidateContent",
+      "input": {
+        "from": "user.bio",
+        "as": "text"
+      },
+      "config": {
+        "minLength": 10
+      },
+      "output": "bioValidation"
+    }
+  ],
+  "assertions": {
+    "nameValidation.passed": true,
+    "emailValidation.passed": true,
+    "bioValidation.passed": true
+  }
+}
+```
+
+### Content Safety Check
+
+```json
+{
+  "block": "ValidateContent",
+  "input": {
+    "from": "userComment.text",
+    "as": "text"
+  },
+  "config": {
+    "notContains": [
+      "spam",
+      "offensive",
+      "inappropriate",
+      "abuse"
+    ],
+    "minLength": 5,
+    "maxLength": 10000
+  },
+  "output": "safetyCheck"
+}
+```
+
+## Validation Score
+
+The `score` field represents how well the content passed validation:
+
+- **1.0** - All validations passed
+- **0.5** - Some validations failed
+- **< 0.5** - Multiple validations failed
+
+The score is calculated based on:
+- Missing required content
+- Forbidden content found
+- Length violations
+- Pattern mismatches
+
+Use the score for assertions:
+
+```json
+{
+  "assertions": {
+    "validation.score": { "gt": 0.8 }
+  }
+}
+```
+
+## Error Messages
+
+Common failure messages:
+
+| Message | Cause |
+|---------|-------|
+| `Missing expected content: word` | Required substring not found |
+| `Found forbidden content: word` | Forbidden substring found |
+| `Text too short: 5 < 10` | Below minLength |
+| `Text too long: 600 > 500` | Above maxLength |
+| `Text doesn't match pattern: regex` | Regex pattern didn't match |
+
+## Full Example
+
+```json
+{
+  "name": "Content Validation Test",
+  "context": {
+    "AI_API_URL": "${env.AI_API_URL}"
+  },
+  "tests": [{
+    "id": "validate-ai-response",
+    "pipeline": [
+      {
+        "id": "call-ai",
+        "block": "HttpRequest",
+        "input": {
+          "url": "${AI_API_URL}/chat",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer ${env.API_KEY}"
+          },
+          "body": {
+            "messages": [{
+              "role": "user",
+              "content": "Schedule a meeting for tomorrow at 2pm"
+            }]
+          }
+        },
+        "output": "response"
+      },
+      {
+        "id": "parse",
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": {
+          "parsed": "aiResponse"
+        }
+      },
+      {
+        "id": "validate-response",
+        "block": "ValidateContent",
+        "input": {
+          "from": "aiResponse.message",
+          "as": "text"
+        },
+        "config": {
+          "contains": ["meeting", "tomorrow", "2pm"],
+          "notContains": ["error", "sorry", "cannot"],
+          "minLength": 20,
+          "maxLength": 500
+        },
+        "output": "validation"
+      }
+    ],
+    "assertions": {
+      "response.status": 200,
+      "validation.passed": true,
+      "validation.score": { "gt": 0.9 }
+    }
+  }]
+}
+```
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Use from/as Input Format">
+    ValidateContent expects a `text` parameter. Use the from/as format:
+
+    ```json
+    {
+      "input": {
+        "from": "response.message",
+        "as": "text"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Case-Insensitive by Default">
+    The `contains` and `notContains` checks are case-insensitive:
+
+    ```json
+    {
+      "config": {
+        "contains": "hello"
+      }
+    }
+    // Matches: "Hello", "HELLO", "hello"
+    ```
+  </Accordion>
+
+  <Accordion title="Combine with LLMJudge">
+    Use ValidateContent for structural checks, LLMJudge for semantic validation:
+
+    ```json
+    {
+      "pipeline": [
+        {
+          "block": "ValidateContent",
+          "input": { "from": "response.text", "as": "text" },
+          "config": { "minLength": 10, "contains": "meeting" },
+          "output": "structureCheck"
+        },
+        {
+          "block": "LLMJudge",
+          "input": {
+            "text": "${response.text}",
+            "expected": { "expectedBehavior": "Professional tone" }
+          },
+          "output": "semanticCheck"
+        }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use Regex for Complex Patterns">
+    Regex patterns are powerful for complex validation:
+
+    ```json
+    {
+      "config": {
+        "matches": "^Meeting at \\d{1,2}(am|pm)$"
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## When to Use
+
+**Use ValidateContent when:**
+- Checking for required keywords
+- Filtering inappropriate content
+- Validating text length
+- Pattern matching (emails, URLs, etc.)
+- Structural content validation
+
+**Use LLMJudge instead when:**
+- Checking semantic meaning
+- Evaluating tone or style
+- Comparing similarity to expected content
+- Complex reasoning about content
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="LLMJudge"
+    icon="gavel"
+    href="/blocks/llm-judge"
+  >
+    Semantic content validation
+  </Card>
+  <Card
+    title="ValidateTools"
+    icon="wrench"
+    href="/blocks/validate-tools"
+  >
+    Validate AI tool calls
+  </Card>
+</CardGroup>

@@ -1,0 +1,386 @@
+---
+title: 'Basic API Test'
+description: 'Complete example of testing a REST API'
+icon: 'globe'
+---
+
+## Overview
+
+This example shows how to test a REST API using SemanticTest. We'll test the JSONPlaceholder API, which provides fake online REST API for testing.
+
+## Complete Test
+
+```json test.json
+{
+  "name": "JSONPlaceholder API Tests",
+  "version": "1.0.0",
+  "context": {
+    "BASE_URL": "https://jsonplaceholder.typicode.com"
+  },
+  "tests": [
+    {
+      "id": "get-user",
+      "name": "Get User by ID",
+      "pipeline": [
+        {
+          "id": "request",
+          "block": "HttpRequest",
+          "input": {
+            "url": "${BASE_URL}/users/1",
+            "method": "GET"
+          },
+          "output": "response"
+        },
+        {
+          "id": "parse",
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": "user"
+        },
+        {
+          "id": "validate",
+          "block": "ValidateContent",
+          "input": {
+            "from": "user.parsed.email",
+            "as": "text"
+          },
+          "config": {
+            "matches": ".*@.*\\..*"
+          },
+          "output": "validation"
+        }
+      ],
+      "assertions": {
+        "response.status": 200,
+        "user.parsed.id": 1,
+        "user.parsed.name": { "contains": "Leanne" },
+        "validation.passed": true
+      }
+    },
+    {
+      "id": "create-post",
+      "name": "Create New Post",
+      "pipeline": [
+        {
+          "id": "create",
+          "block": "HttpRequest",
+          "input": {
+            "url": "${BASE_URL}/posts",
+            "method": "POST",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "title": "Test Post",
+              "body": "This is a test post",
+              "userId": 1
+            }
+          },
+          "output": "createResponse"
+        },
+        {
+          "id": "parse",
+          "block": "JsonParser",
+          "input": "${createResponse.body}",
+          "output": "post"
+        }
+      ],
+      "assertions": {
+        "createResponse.status": 201,
+        "post.parsed.title": "Test Post",
+        "post.parsed.userId": 1
+      }
+    },
+    {
+      "id": "get-posts",
+      "name": "Get All Posts",
+      "pipeline": [
+        {
+          "id": "request",
+          "block": "HttpRequest",
+          "input": {
+            "url": "${BASE_URL}/posts",
+            "method": "GET"
+          },
+          "output": "response"
+        },
+        {
+          "id": "parse",
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": "posts"
+        }
+      ],
+      "assertions": {
+        "response.status": 200
+      }
+    }
+  ]
+}
+```
+
+## Running the Test
+
+```bash
+npx semtest test.json
+```
+
+Expected output:
+
+```
+✅ JSONPlaceholder API Tests
+  ✅ get-user: Get User by ID (234ms)
+     ✅ response.status = 200
+     ✅ user.parsed.id = 1
+     ✅ user.parsed.name contains "Leanne"
+     ✅ validation.passed = true
+
+  ✅ create-post: Create New Post (156ms)
+     ✅ createResponse.status = 201
+     ✅ post.parsed.title = "Test Post"
+     ✅ post.parsed.userId = 1
+
+  ✅ get-posts: Get All Posts (198ms)
+     ✅ response.status = 200
+     ✅ posts.parsed.length >= 10
+
+3 tests passed, 0 failed (588ms total)
+```
+
+## Breaking It Down
+
+### Test 1: Get User
+
+<Steps>
+  <Step title="Make HTTP Request">
+    Fetch user with ID 1 from the API
+    ```json
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/users/1",
+        "method": "GET"
+      },
+      "output": "response"
+    }
+    ```
+  </Step>
+
+  <Step title="Parse JSON Response">
+    Convert JSON string to object
+    ```json
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": "user"
+    }
+    ```
+  </Step>
+
+  <Step title="Validate Email Format">
+    Check that email matches expected pattern
+    ```json
+    {
+      "block": "ValidateContent",
+      "input": {
+        "from": "user.parsed.email",
+        "as": "text"
+      },
+      "config": {
+        "matches": ".*@.*\\..*"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Assert Results">
+    Verify all expectations are met
+    ```json
+    {
+      "assertions": {
+        "response.status": 200,
+        "user.parsed.id": 1,
+        "user.parsed.name": { "contains": "Leanne" },
+        "validation.passed": true
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+### Test 2: Create Post
+
+This test demonstrates POST requests with JSON body:
+
+```json
+{
+  "block": "HttpRequest",
+  "input": {
+    "url": "${BASE_URL}/posts",
+    "method": "POST",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "title": "Test Post",
+      "body": "This is a test post",
+      "userId": 1
+    }
+  }
+}
+```
+
+<Note>
+  JSONPlaceholder is a fake API, so it won't actually create the post. But it simulates the response correctly!
+</Note>
+
+### Test 3: Get All Posts
+
+Shows how to validate array responses:
+
+```json
+{
+  "assertions": {
+    "response.status": 200
+  }
+}
+```
+
+The status assertion verifies we got a successful response.
+
+## Variations
+
+### With Error Handling
+
+Add retry logic for flaky endpoints:
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "request",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${API_URL}/flaky-endpoint",
+        "method": "GET"
+      },
+      "output": "response"
+    },
+    {
+      "block": "Loop",
+      "config": {
+        "target": "request",
+        "maxIterations": 3,
+        "condition": {
+          "path": "response.status",
+          "operator": "notEquals",
+          "value": 200
+        }
+      }
+    }
+  ],
+  "assertions": {
+    "response.status": 200
+  }
+}
+```
+
+This retries the request up to 3 times, looping while the status is not 200.
+
+### With Authentication
+
+Add auth token to requests:
+
+```json
+{
+  "context": {
+    "API_KEY": "${env.API_KEY}"
+  },
+  "tests": [{
+    "pipeline": [{
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/protected",
+        "headers": {
+          "Authorization": "Bearer ${API_KEY}"
+        }
+      }
+    }]
+  }]
+}
+```
+
+### With Setup/Teardown
+
+Clean up test data:
+
+```json
+{
+  "setup": [
+    {
+      "id": "create-test-user",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/users",
+        "method": "POST",
+        "body": { "name": "Test User" }
+      },
+      "output": "testUser"
+    }
+  ],
+  "tests": [
+    {
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "${BASE_URL}/users/${testUser.body.id}"
+          }
+        }
+      ]
+    }
+  ],
+  "teardown": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${BASE_URL}/users/${testUser.body.id}",
+        "method": "DELETE"
+      }
+    }
+  ]
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="AI Chat Test"
+    icon="robot"
+    href="/examples/ai-chat-test"
+  >
+    Learn how to test AI chat APIs
+  </Card>
+  <Card
+    title="Error Handling"
+    icon="triangle-exclamation"
+    href="/examples/error-handling"
+  >
+    Advanced error handling patterns
+  </Card>
+  <Card
+    title="HttpRequest Block"
+    icon="globe"
+    href="/blocks/http-request"
+  >
+    Complete HttpRequest documentation
+  </Card>
+  <Card
+    title="Assertions"
+    icon="check"
+    href="/concepts/assertions"
+  >
+    All available assertion operators
+  </Card>
+</CardGroup>

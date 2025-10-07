@@ -1,0 +1,485 @@
+---
+title: 'Calendar Agent'
+description: 'Complete example of testing an AI calendar agent'
+icon: 'calendar'
+---
+
+## Overview
+
+This example demonstrates end-to-end testing of an AI calendar agent that can:
+- Check user availability
+- Create calendar events
+- Handle conflicts
+- Send notifications
+
+## Complete Test Suite
+
+```json test.json
+{
+  "name": "Calendar Agent Tests",
+  "version": "1.0.0",
+  "context": {
+    "USER_ID": "user123",
+    "TEST_DATE": "2024-01-20"
+  },
+  "tests": [
+    {
+      "id": "schedule-meeting",
+      "name": "Schedule Team Meeting",
+      "pipeline": [
+        {
+          "id": "simulate-ai-request",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "userMessage": "Schedule a team meeting for tomorrow at 2pm with john@example.com",
+              "aiResponse": {
+                "message": "I'll check availability and schedule the meeting for you. Let me look at your calendar for tomorrow at 2 PM.",
+                "toolCalls": [
+                  {
+                    "name": "check_user_conflicts",
+                    "args": {
+                      "userId": "user123",
+                      "date": "2024-01-20",
+                      "startTime": "14:00",
+                      "endTime": "15:00"
+                    }
+                  },
+                  {
+                    "name": "create_event",
+                    "args": {
+                      "userId": "user123",
+                      "summary": "Team Meeting",
+                      "start": "2024-01-20T14:00:00",
+                      "end": "2024-01-20T15:00:00",
+                      "attendees": ["john@example.com"],
+                      "location": "Conference Room A"
+                    }
+                  },
+                  {
+                    "name": "send_notification",
+                    "args": {
+                      "to": ["john@example.com"],
+                      "subject": "Meeting Invitation: Team Meeting",
+                      "type": "calendar_invite"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "output": "agentData"
+        },
+        {
+          "id": "validate-tools",
+          "block": "ValidateTools",
+          "input": {
+            "from": "agentData.aiResponse.toolCalls",
+            "as": "toolCalls"
+          },
+          "config": {
+            "expected": ["check_user_conflicts", "create_event", "send_notification"],
+            "order": true
+          },
+          "output": "toolValidation"
+        },
+        {
+          "id": "validate-response",
+          "block": "LLMJudge",
+          "input": {
+            "text": "${agentData.aiResponse.message}",
+            "toolCalls": "${agentData.aiResponse.toolCalls}",
+            "expected": {
+              "expectedBehavior": "The AI should: 1) Check for scheduling conflicts first, 2) Create the calendar event with correct details (tomorrow at 2 PM, attendee john@example.com), 3) Send notifications to attendees. The response should be friendly and confirm the action."
+            }
+          },
+          "config": {
+            "model": "gpt-4o-mini",
+            "criteria": {
+              "accuracy": 0.4,
+              "completeness": 0.4,
+              "relevance": 0.2
+            }
+          },
+          "output": "judgement"
+        }
+      ],
+      "assertions": {
+        "toolValidation.passed": true,
+        "toolValidation.score": { "gte": 1.0 },
+        "judgement.score": { "gte": 0.8 }
+      }
+    },
+    {
+      "id": "conflict-handling",
+      "name": "Handle Scheduling Conflict",
+      "pipeline": [
+        {
+          "id": "simulate-conflict",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "userMessage": "Schedule a meeting tomorrow at 2pm",
+              "aiResponse": {
+                "message": "I found that you already have a meeting scheduled from 2:00-3:00 PM tomorrow. Would you like me to suggest alternative times or would you prefer to reschedule your existing meeting?",
+                "toolCalls": [
+                  {
+                    "name": "check_user_conflicts",
+                    "args": {
+                      "userId": "user123",
+                      "date": "2024-01-20",
+                      "startTime": "14:00",
+                      "endTime": "15:00"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "output": "conflictData"
+        },
+        {
+          "id": "validate-conflict-handling",
+          "block": "LLMJudge",
+          "input": {
+            "text": "${conflictData.aiResponse.message}",
+            "toolCalls": "${conflictData.aiResponse.toolCalls}",
+            "expected": {
+              "expectedBehavior": "The AI should check for conflicts first, detect the scheduling conflict, inform the user about the existing meeting, and offer alternatives or ask for next steps. It should NOT create a conflicting event."
+            }
+          },
+          "config": {
+            "model": "gpt-4o-mini"
+          },
+          "output": "conflictJudgement"
+        },
+        {
+          "id": "verify-no-double-booking",
+          "block": "ValidateTools",
+          "input": {
+            "from": "conflictData.aiResponse.toolCalls",
+            "as": "toolCalls"
+          },
+          "config": {
+            "forbidden": ["create_event"],
+            "expected": ["check_user_conflicts"]
+          },
+          "output": "toolCheck"
+        }
+      ],
+      "assertions": {
+        "conflictJudgement.score": { "gte": 0.8 },
+        "toolCheck.passed": true
+      }
+    },
+    {
+      "id": "multi-attendee",
+      "name": "Schedule with Multiple Attendees",
+      "pipeline": [
+        {
+          "id": "simulate-multi-attendee",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "aiResponse": {
+                "toolCalls": [
+                  {
+                    "name": "check_user_conflicts",
+                    "args": {
+                      "userId": "user123",
+                      "date": "2024-01-21",
+                      "startTime": "10:00",
+                      "endTime": "11:00"
+                    }
+                  },
+                  {
+                    "name": "create_event",
+                    "args": {
+                      "userId": "user123",
+                      "summary": "Project Planning",
+                      "start": "2024-01-21T10:00:00",
+                      "end": "2024-01-21T11:00:00",
+                      "attendees": [
+                        "alice@example.com",
+                        "bob@example.com",
+                        "charlie@example.com"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "output": "multiData"
+        },
+        {
+          "id": "validate-attendees",
+          "block": "ValidateTools",
+          "input": {
+            "from": "multiData.aiResponse.toolCalls",
+            "as": "toolCalls"
+          },
+          "config": {
+            "validateArgs": {
+              "create_event": {
+                "userId": "user123"
+              }
+            }
+          },
+          "output": "attendeeValidation"
+        }
+      ],
+      "assertions": {
+        "attendeeValidation.passed": true
+      }
+    }
+  ]
+}
+```
+
+## Setup
+
+Create a `.env` file with your OpenAI API key:
+
+```bash .env
+OPENAI_API_KEY=sk-proj-your-key-here
+```
+
+## Running the Tests
+
+```bash
+npx semtest test.json
+```
+
+Expected output:
+
+```
+✅ Calendar Agent Tests
+  ✅ schedule-meeting: Schedule Team Meeting (1.5s)
+     ✅ toolValidation.passed = true
+     ✅ toolValidation.score = 1.0
+     ✅ judgement.score = 0.89
+
+  ✅ conflict-handling: Handle Scheduling Conflict (1.2s)
+     ✅ conflictJudgement.score = 0.91
+     ✅ toolCheck.passed = true
+
+  ✅ multi-attendee: Schedule with Multiple Attendees (0.8s)
+     ✅ attendeeValidation.passed = true
+
+3 tests passed, 0 failed (3.5s total)
+```
+
+## Test Breakdown
+
+### Test 1: Basic Scheduling
+
+Validates the **happy path** where the agent successfully schedules a meeting:
+
+1. **Check conflicts** - Agent must check availability first
+2. **Create event** - Agent creates the meeting with correct details
+3. **Send notifications** - Agent notifies attendees
+
+```json
+{
+  "expected": ["check_user_conflicts", "create_event", "send_notification"],
+  "order": true  // Tools must be called in this order
+}
+```
+
+### Test 2: Conflict Handling
+
+Validates the agent **handles conflicts gracefully**:
+
+- Detects existing meetings
+- Informs user about conflicts
+- Does NOT create conflicting events
+- Offers alternatives
+
+```json
+{
+  "config": {
+    "forbidden": ["create_event"],  // Should NOT create event
+    "expected": ["check_user_conflicts"]
+  }
+}
+```
+
+### Test 3: Multiple Attendees
+
+Ensures the agent **correctly handles group meetings**:
+
+- Validates attendee list is preserved
+- Checks userId is correct
+- Verifies all required fields
+
+## Key Patterns
+
+### Tool Order Validation
+
+```json
+{
+  "block": "ValidateTools",
+  "config": {
+    "expected": ["check_conflicts", "create_event"],
+    "order": true  // Enforce execution order
+  }
+}
+```
+
+### Forbidden Actions
+
+```json
+{
+  "config": {
+    "forbidden": ["delete_event", "cancel_all"]
+  }
+}
+```
+
+### Argument Validation
+
+```json
+{
+  "config": {
+    "validateArgs": {
+      "create_event": {
+        "userId": "user123"
+      }
+    }
+  }
+}
+```
+
+## Integration with Real Calendar API
+
+Replace `MockData` with actual API calls:
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "${CALENDAR_API}/ai/chat",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer ${env.API_KEY}"
+        },
+        "body": {
+          "message": "Schedule a meeting tomorrow at 2pm",
+          "userId": "${USER_ID}"
+        }
+      },
+      "output": "apiResponse"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${apiResponse.body}",
+      "output": { "parsed": "agentData" }
+    },
+    {
+      "block": "ValidateTools",
+      "input": {
+        "from": "agentData.toolCalls",
+        "as": "toolCalls"
+      },
+      "config": {
+        "expected": ["check_user_conflicts", "create_event"]
+      }
+    }
+  ]
+}
+```
+
+## Advanced Scenarios
+
+### Testing Retry Logic
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "attempt-schedule",
+      "block": "HttpRequest",
+      "input": {
+        "url": "${API_URL}/schedule"
+      },
+      "output": "result"
+    },
+    {
+      "block": "Loop",
+      "config": {
+        "target": "attempt-schedule",
+        "maxIterations": 3,
+        "condition": {
+          "path": "result.status",
+          "operator": "notEquals",
+          "value": 200
+        }
+      }
+    }
+  ]
+}
+```
+
+### Testing Time Zones
+
+```json
+{
+  "tests": [
+    {
+      "id": "timezone-handling",
+      "pipeline": [
+        {
+          "block": "MockData",
+          "config": {
+            "data": {
+              "toolCalls": [{
+                "name": "create_event",
+                "args": {
+                  "start": "2024-01-20T14:00:00-08:00",  // PST
+                  "end": "2024-01-20T15:00:00-08:00"
+                }
+              }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Tool Validation"
+    icon="wrench"
+    href="/ai-testing/tool-calls"
+  >
+    Learn advanced tool validation
+  </Card>
+  <Card
+    title="Multi-turn Conversations"
+    icon="comments"
+    href="/ai-testing/multi-turn-conversations"
+  >
+    Test conversational AI agents
+  </Card>
+  <Card
+    title="Error Handling"
+    icon="triangle-exclamation"
+    href="/examples/error-handling"
+  >
+    Handle errors gracefully
+  </Card>
+  <Card
+    title="ValidateTools Block"
+    icon="book"
+    href="/blocks/validate-tools"
+  >
+    Complete tool validation docs
+  </Card>
+</CardGroup>

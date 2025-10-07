@@ -8,8 +8,8 @@ import { SCORE_MULTIPLIERS } from '../../src/utils/constants.js';
 export class ValidateContent extends Block {
   static get inputs() {
     return {
-      required: ['text'],
-      optional: []
+      required: [],
+      optional: ['text']
     };
   }
 
@@ -29,6 +29,14 @@ export class ValidateContent extends Block {
       score: 1.0,
       checks: {}
     };
+
+    // Handle missing or undefined text
+    if (text === undefined || text === null) {
+      results.passed = false;
+      results.failures.push('Missing required input: text');
+      results.score = 0;
+      return results;
+    }
 
     // Check if text contains expected strings
     if (config.contains) {

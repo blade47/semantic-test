@@ -1,0 +1,312 @@
+---
+title: 'Data Flow'
+description: 'How data moves through your test pipelines'
+icon: 'arrow-right-arrow-left'
+---
+
+## The DataBus
+
+The **DataBus** is a key-value store that holds all data during test execution. Think of it as a shared memory where blocks can read and write data using **named slots**.
+
+```
+┌─────────────┐
+│   DataBus   │
+├─────────────┤
+│ response    │ ← HttpRequest writes here
+│ parsed      │ ← JsonParser writes here
+│ validation  │ ← Validate writes here
+└─────────────┘
+```
+
+## Writing to the DataBus
+
+Blocks write their output to named slots using the `output` field:
+
+```json
+{
+  "block": "HttpRequest",
+  "input": { "url": "https://api.example.com/users/1" },
+  "output": "response"  // ← Writes to 'response' slot
+}
+```
+
+After this block executes, the DataBus contains:
+
+```javascript
+{
+  response: {
+    status: 200,
+    body: '{"id": 1, "name": "John"}',
+    headers: { /* ... */ }
+  }
+}
+```
+
+## Reading from the DataBus
+
+Use `${}` syntax to read from slots:
+
+```json
+{
+  "block": "JsonParser",
+  "input": "${response.body}",  // ← Reads from 'response.body'
+  "output": "parsed"
+}
+```
+
+You can access nested properties using dot notation:
+
+```json
+"input": "${response.headers.content-type}"
+"input": "${parsed.data.user.email}"
+"input": "${validation.passed}"
+```
+
+## Variable Resolution
+
+The DataBus resolves variables when blocks execute:
+
+```json
+{
+  "pipeline": [
+    {
+      "id": "fetch",
+      "block": "HttpRequest",
+      "input": { "url": "${BASE_URL}/users" },  // ← Resolves ${BASE_URL}
+      "output": "users"
+    },
+    {
+      "id": "process",
+      "block": "JsonParser",
+      "input": "${users.body}",  // ← Resolves ${users.body}
+      "output": "parsed"
+    }
+  ]
+}
+```
+
+### Resolution Order
+
+Variables are resolved from multiple sources in this priority:
+
+1. **Environment** - From `.env` file (accessed via `${env.VARIABLE}`)
+2. **Context** - Defined in the test file
+3. **DataBus** - From previous blocks
+
+```json
+{
+  "context": {
+    "BASE_URL": "${env.API_URL}",  // From .env
+    "API_KEY": "hardcoded-key"
+  },
+  "tests": [{
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "${BASE_URL}/data",        // From context
+          "headers": {
+            "Authorization": "${API_KEY}"    // From context
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",         // From DataBus
+        "output": "data"
+      }
+    ]
+  }]
+}
+```
+
+## Data Transformation
+
+Data can be transformed as it flows:
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "output": "raw"           // Raw HTTP response
+    },
+    {
+      "block": "JsonParser",
+      "input": "${raw.body}",
+      "output": "parsed"        // Parsed JSON
+    },
+    {
+      "block": "ValidateContent",
+      "input": {
+        "from": "parsed.message",
+        "as": "text"
+      },
+      "output": "validation"    // Validation result
+    }
+  ]
+}
+```
+
+DataBus state after each block:
+
+<Steps>
+  <Step title="After HttpRequest">
+    ```javascript
+    {
+      raw: {
+        status: 200,
+        body: '{"message": "Hello"}',
+        headers: {}
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="After JsonParser">
+    ```javascript
+    {
+      raw: { /* ... */ },
+      parsed: {
+        message: "Hello"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="After ValidateContent">
+    ```javascript
+    {
+      raw: { /* ... */ },
+      parsed: { /* ... */ },
+      validation: {
+        passed: true,
+        checks: { /* ... */ }
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Context Variables
+
+Define reusable variables in `context`:
+
+```json
+{
+  "context": {
+    "BASE_URL": "https://api.example.com",
+    "API_VERSION": "v1",
+    "ENDPOINT": "${BASE_URL}/${API_VERSION}/users"
+  },
+  "tests": [{
+    "pipeline": [{
+      "block": "HttpRequest",
+      "input": { "url": "${ENDPOINT}" }
+    }]
+  }]
+}
+```
+
+## Environment Variables
+
+Reference environment variables:
+
+```bash .env
+API_URL=https://api.example.com
+API_KEY=secret123
+```
+
+```json
+{
+  "context": {
+    "BASE_URL": "${env.API_URL}",
+    "API_KEY": "${env.API_KEY}"
+  }
+}
+```
+
+## Debugging Data Flow
+
+Enable debug logging to see data flow:
+
+```bash
+export LOG_LEVEL=DEBUG
+npx semtest test.json
+```
+
+You'll see:
+
+```
+[DEBUG] DataBus.set('response', {...})
+[DEBUG] DataBus.get('response.body') → '{"id": 1}'
+[DEBUG] Resolving ${response.body} → {"id": 1}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Descriptive Slot Names">
+    ```json
+    // Good
+    "output": "userProfile"
+    "output": "authToken"
+    "output": "validationResult"
+
+    // Bad
+    "output": "data"
+    "output": "result"
+    "output": "temp"
+    ```
+  </Accordion>
+
+  <Accordion title="Keep Data Flat When Possible">
+    ```json
+    // Simpler to reference
+    "output": "userId"    // Use ${userId}
+
+    // vs
+    "output": "user"      // Use ${user.data.profile.id}
+    ```
+  </Accordion>
+
+  <Accordion title="Use Context for Repeated Values">
+    ```json
+    {
+      "context": {
+        "AUTH_HEADER": "Bearer ${env.API_KEY}"
+      },
+      "tests": [{
+        "pipeline": [
+          {
+            "block": "HttpRequest",
+            "input": {
+              "headers": { "Authorization": "${AUTH_HEADER}" }
+            }
+          }
+        ]
+      }]
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Input Formats"
+    icon="inbox"
+    href="/concepts/input-formats"
+  >
+    Learn different ways to pass data to blocks
+  </Card>
+  <Card
+    title="Output Formats"
+    icon="box"
+    href="/concepts/output-formats"
+  >
+    Learn how blocks can output data
+  </Card>
+</CardGroup>

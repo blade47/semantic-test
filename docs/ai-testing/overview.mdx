@@ -1,0 +1,443 @@
+---
+title: 'Testing AI Systems'
+description: 'Learn how to test non-deterministic AI systems effectively'
+icon: 'robot'
+---
+
+## The Challenge of Testing AI
+
+Traditional API testing uses **exact matching**:
+
+```json
+{
+  "assertions": {
+    "response.message": "User created successfully"
+  }
+}
+```
+
+This breaks immediately with AI responses. Consider asking an AI to schedule a meeting:
+
+**Expected:** "I've scheduled your meeting for 2 PM on Tuesday."
+
+**Actual responses:**
+- ✅ "Your meeting is set for Tuesday at 2:00 PM"
+- ✅ "Done! Meeting scheduled for 14:00 on Tuesday"
+- ✅ "I've booked your Tuesday 2pm slot"
+- ❌ All fail with exact matching!
+
+## Why AI Testing is Different
+
+### 1. Non-Deterministic Responses
+Same input → different outputs every time:
+```bash
+Input: "Summarize this article"
+Output 1: "This article discusses..."
+Output 2: "The piece explores..."
+Output 3: "Key points include..."
+```
+
+### 2. Semantic Equivalence
+These mean the same thing:
+- "Cannot find user"
+- "User not found"
+- "That user doesn't exist"
+- "I couldn't locate that user"
+
+### 3. Tool/Function Calling
+AI agents call tools unpredictably:
+```javascript
+// Both valid for "book a meeting"
+[{ name: "search_calendar" }, { name: "create_event" }]
+[{ name: "check_availability" }, { name: "create_event" }, { name: "send_confirmation" }]
+```
+
+### 4. Streaming Responses
+Responses arrive as chunks over Server-Sent Events (SSE):
+```
+data: {"content":"Hello"}
+data: {"content":" there"}
+data: {"content":"!"}
+```
+
+## SemanticTest's Approach
+
+SemanticTest provides **4 specialized approaches** for AI testing:
+
+### 1. Semantic Validation (LLMJudge)
+Use AI to judge AI responses:
+
+```json
+{
+  "block": "LLMJudge",
+  "input": {
+    "text": "${aiResponse.text}",
+    "expected": {
+      "expectedBehavior": "Should confirm meeting time and location"
+    }
+  },
+  "output": "judgement"
+}
+```
+
+**Result:**
+```javascript
+{
+  score: 0.95,
+  passed: true,
+  reasoning: "Response confirms meeting time (2 PM) and location (Conference Room A)"
+}
+```
+
+### 2. Tool Call Validation
+Validate what tools AI calls and with what arguments:
+
+```json
+{
+  "block": "ValidateTools",
+  "input": {
+    "from": "aiResponse.toolCalls",
+    "as": "toolCalls"
+  },
+  "config": {
+    "expected": ["search_calendar", "create_event"],
+    "order": ["search_calendar", "create_event"]
+  }
+}
+```
+
+### 3. Streaming Response Parsing
+Parse SSE streams from AI APIs:
+
+```json
+{
+  "block": "StreamParser",
+  "input": "${response.body}",
+  "config": {
+    "format": "sse-openai"
+  },
+  "output": {
+    "text": "aiMessage",
+    "toolCalls": "aiTools"
+  }
+}
+```
+
+### 4. Multi-Turn Conversation Testing
+Test conversational flows with context:
+
+```json
+{
+  "block": "LLMJudge",
+  "input": {
+    "text": "${aiResponse.text}",
+    "history": [
+      { "role": "user", "content": "Hello" },
+      { "role": "assistant", "content": "Hi! How can I help?" },
+      { "role": "user", "content": "Book a meeting" }
+    ],
+    "expected": {
+      "expectedBehavior": "Should remember context and ask for meeting details"
+    }
+  }
+}
+```
+
+## Traditional vs Semantic Testing
+
+<Tabs>
+  <Tab title="❌ Traditional (Brittle)">
+    ```json
+    {
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "${AI_API}/chat",
+            "method": "POST",
+            "body": {
+              "message": "Schedule meeting for tomorrow at 2pm"
+            }
+          },
+          "output": "response"
+        }
+      ],
+      "assertions": {
+        "response.body": "I've scheduled your meeting for 2:00 PM tomorrow."
+      }
+    }
+    ```
+    **Problem:** Fails if AI says "Done! Meeting set for 2pm tomorrow" or any variation.
+  </Tab>
+
+  <Tab title="✅ Semantic (Robust)">
+    ```json
+    {
+      "pipeline": [
+        {
+          "block": "HttpRequest",
+          "input": {
+            "url": "${AI_API}/chat",
+            "method": "POST",
+            "body": {
+              "message": "Schedule meeting for tomorrow at 2pm"
+            }
+          },
+          "output": "response"
+        },
+        {
+          "block": "StreamParser",
+          "input": "${response.body}",
+          "config": { "format": "sse-openai" },
+          "output": { "text": "aiMessage", "toolCalls": "tools" }
+        },
+        {
+          "block": "ValidateTools",
+          "input": { "from": "tools", "as": "toolCalls" },
+          "config": {
+            "expected": ["create_event"]
+          },
+          "output": "toolValidation"
+        },
+        {
+          "block": "LLMJudge",
+          "input": {
+            "text": "${aiMessage}",
+            "expected": {
+              "expectedBehavior": "Confirms meeting scheduled for 2pm tomorrow"
+            }
+          },
+          "output": "judgement"
+        }
+      ],
+      "assertions": {
+        "toolValidation.passed": true,
+        "judgement.score": { "gt": 0.8 }
+      }
+    }
+    ```
+    **Result:** Passes for any semantically correct response.
+  </Tab>
+</Tabs>
+
+## What You'll Learn
+
+<CardGroup cols={2}>
+  <Card
+    title="Semantic Validation"
+    icon="gavel"
+    href="/ai-testing/semantic-validation"
+  >
+    Use LLMJudge to validate AI responses semantically instead of exact matches
+  </Card>
+
+  <Card
+    title="Tool Call Validation"
+    icon="wrench"
+    href="/ai-testing/tool-calls"
+  >
+    Test AI agents that call tools/functions with ValidateTools
+  </Card>
+
+  <Card
+    title="Streaming Responses"
+    icon="wave-pulse"
+    href="/ai-testing/streaming-responses"
+  >
+    Parse and test Server-Sent Events (SSE) streams from AI APIs
+  </Card>
+
+  <Card
+    title="Multi-Turn Conversations"
+    icon="comments"
+    href="/ai-testing/multi-turn-conversations"
+  >
+    Test conversational AI with context and memory
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+### 1. Install SemanticTest
+```bash
+npm install @blade47/semantic-test
+```
+
+### 2. Set OpenAI API Key (for LLMJudge)
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+<Note>
+  **Optional:** LLMJudge requires OpenAI API key. All other blocks work without it!
+</Note>
+
+### 3. Create Your First AI Test
+
+```json test.json
+{
+  "name": "AI Chat Test",
+  "context": {
+    "AI_URL": "https://api.openai.com/v1/chat/completions",
+    "API_KEY": "${env.OPENAI_API_KEY}"
+  },
+  "tests": [{
+    "id": "test-greeting",
+    "pipeline": [
+      {
+        "block": "HttpRequest",
+        "input": {
+          "url": "${AI_URL}",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer ${API_KEY}",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "gpt-4o-mini",
+            "messages": [
+              { "role": "user", "content": "Hello!" }
+            ]
+          }
+        },
+        "output": "response"
+      },
+      {
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": { "parsed": "data" }
+      },
+      {
+        "block": "LLMJudge",
+        "input": {
+          "text": "${data.choices[0].message.content}",
+          "expected": {
+            "expectedBehavior": "Friendly greeting response"
+          }
+        },
+        "output": "judgement"
+      }
+    ],
+    "assertions": {
+      "response.status": 200,
+      "judgement.score": { "gt": 0.8 }
+    }
+  }]
+}
+```
+
+### 4. Run Tests
+```bash
+npx semtest test.json
+```
+
+## When to Use Each Approach
+
+| Use Case | Approach | Block |
+|----------|----------|-------|
+| Validate response quality/meaning | Semantic Validation | LLMJudge |
+| Check exact tools called | Tool Validation | ValidateTools |
+| Parse streaming AI responses | Stream Parsing | StreamParser |
+| Test conversation flows | Multi-Turn Testing | LLMJudge + history |
+| Verify specific keywords | Traditional | ValidateContent |
+| Check response structure | Traditional | Assertions |
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Combine Multiple Validation Approaches">
+    Use structural validation (ValidateTools) + semantic validation (LLMJudge):
+
+    ```json
+    {
+      "pipeline": [
+        { "block": "ValidateTools", "config": { "expected": ["search"] } },
+        { "block": "LLMJudge", "input": { "expected": { "expectedBehavior": "Polite response" } } }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use Traditional Assertions Where Possible">
+    Exact assertions are faster and cheaper:
+
+    ```json
+    {
+      "assertions": {
+        "response.status": 200,
+        "data.id": { "gt": 0 }
+      }
+    }
+    ```
+
+    Reserve LLMJudge for truly non-deterministic content.
+  </Accordion>
+
+  <Accordion title="Set Clear Expected Behavior">
+    Be specific in LLMJudge expectations:
+
+    ```json
+    // ❌ Vague
+    "expectedBehavior": "Good response"
+
+    // ✅ Specific
+    "expectedBehavior": "Confirms order #12345 is shipped and provides tracking number"
+    ```
+  </Accordion>
+
+  <Accordion title="Test Edge Cases">
+    AI systems need edge case testing:
+
+    - Ambiguous user input
+    - Missing context
+    - Conflicting instructions
+    - Tool call failures
+    - Stream interruptions
+  </Accordion>
+</AccordionGroup>
+
+## Real-World Examples
+
+<CardGroup cols={2}>
+  <Card
+    title="AI Chat API"
+    icon="comments"
+    href="/examples/ai-chat-test"
+  >
+    Complete example testing OpenAI chat API
+  </Card>
+
+  <Card
+    title="Calendar Agent"
+    icon="calendar"
+    href="/examples/calendar-agent"
+  >
+    Test an AI agent that manages calendar events
+  </Card>
+
+  <Card
+    title="Basic API Test"
+    icon="globe"
+    href="/examples/basic-api-test"
+  >
+    Traditional API testing patterns
+  </Card>
+
+  <Card
+    title="Error Handling"
+    icon="triangle-exclamation"
+    href="/examples/error-handling"
+  >
+    Handle errors and retries
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<Card
+  title="Semantic Validation with LLMJudge"
+  icon="gavel"
+  href="/ai-testing/semantic-validation"
+>
+  Start with semantic validation - the core of AI testing
+</Card>

@@ -1,0 +1,362 @@
+---
+title: 'JsonParser'
+description: 'Parse JSON strings into JavaScript objects'
+icon: 'brackets-curly'
+---
+
+## Overview
+
+The **JsonParser** block parses JSON strings into JavaScript objects so you can access their properties in assertions and subsequent blocks.
+
+```json
+{
+  "block": "JsonParser",
+  "input": "${response.body}",
+  "output": {
+    "parsed": "data"
+  }
+}
+```
+
+## Input Parameters
+
+### Required
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `body` | string | JSON string to parse |
+
+## Output Fields
+
+### On Success
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `parsed` | object/array | The parsed JSON data |
+
+### On Failure
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `error` | string | Error message describing parse failure |
+| `raw` | string | Original unparsed body |
+
+## Examples
+
+### Basic Usage
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "https://api.example.com/users/1",
+        "method": "GET"
+      },
+      "output": "response"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": {
+        "parsed": "user"
+      }
+    }
+  ],
+  "assertions": {
+    "user.id": 1,
+    "user.name": { "matches": ".+" }
+  }
+}
+```
+
+**Flow:**
+1. HttpRequest returns: `{ body: '{"id": 1, "name": "John"}' }`
+2. JsonParser parses to: `{ parsed: { id: 1, name: "John" } }`
+3. Stored in DataBus as: `user = { id: 1, name: "John" }`
+4. Assertions can access `user.id` and `user.name`
+
+### Using String Input Format
+
+```json
+{
+  "block": "JsonParser",
+  "input": "${response.body}",
+  "output": "parsed"
+}
+```
+
+This automatically wraps the string as `{ body: value }`:
+
+**Access with:** `${parsed.parsed.id}`
+
+### Using Object Format (Recommended)
+
+```json
+{
+  "block": "JsonParser",
+  "input": "${response.body}",
+  "output": {
+    "parsed": "user"
+  }
+}
+```
+
+**Access with:** `${user.id}` (cleaner!)
+
+### Parsing Arrays
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": {
+        "url": "https://api.example.com/users",
+        "method": "GET"
+      },
+      "output": "response"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": {
+        "parsed": "users"
+      }
+    }
+  ],
+  "assertions": {
+    "users[0].id": { "gt": 0 }
+  }
+}
+```
+
+## Error Handling
+
+If parsing fails, the block returns an error:
+
+```javascript
+{
+  error: "JSON parse error: Unexpected token...",
+  raw: "invalid json{]"
+}
+```
+
+You can check for errors in assertions:
+
+```json
+{
+  "assertions": {
+    "parsed.error": null
+  }
+}
+```
+
+Or assert success by checking the parsed data exists:
+
+```json
+{
+  "assertions": {
+    "user.id": { "gt": 0 }
+  }
+}
+```
+
+## Common Patterns
+
+### HTTP Request + Parse
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": { "url": "${API_URL}/data", "method": "GET" },
+      "output": "response"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": { "parsed": "data" }
+    }
+  ]
+}
+```
+
+### Nested Data Extraction
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "output": "response"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${response.body}",
+      "output": { "parsed": "apiResponse" }
+    }
+  ],
+  "assertions": {
+    "apiResponse.data.users[0].email": { "matches": ".*@.*" }
+  }
+}
+```
+
+### Multiple Parse Operations
+
+```json
+{
+  "pipeline": [
+    {
+      "block": "HttpRequest",
+      "input": { "url": "${API_URL}/user", "method": "GET" },
+      "output": "userResponse"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${userResponse.body}",
+      "output": { "parsed": "user" }
+    },
+    {
+      "block": "HttpRequest",
+      "input": { "url": "${API_URL}/posts", "method": "GET" },
+      "output": "postsResponse"
+    },
+    {
+      "block": "JsonParser",
+      "input": "${postsResponse.body}",
+      "output": { "parsed": "posts" }
+    }
+  ],
+  "assertions": {
+    "user.id": 1,
+    "posts[0].userId": 1
+  }
+}
+```
+
+## Full Example
+
+```json
+{
+  "name": "JSON Parsing Test",
+  "context": {
+    "BASE_URL": "https://jsonplaceholder.typicode.com"
+  },
+  "tests": [{
+    "id": "test-parse",
+    "pipeline": [
+      {
+        "id": "fetch",
+        "block": "HttpRequest",
+        "input": {
+          "url": "${BASE_URL}/users/1",
+          "method": "GET"
+        },
+        "output": "response"
+      },
+      {
+        "id": "parse",
+        "block": "JsonParser",
+        "input": "${response.body}",
+        "output": {
+          "parsed": "user"
+        }
+      }
+    ],
+    "assertions": {
+      "response.status": 200,
+      "user.id": 1,
+      "user.name": { "matches": ".+" },
+      "user.email": { "matches": ".*@.*" },
+      "user.address.city": { "matches": ".+" }
+    }
+  }]
+}
+```
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Always Use Object Output Format">
+    Map `parsed` to a descriptive name for cleaner references:
+
+    ```json
+    // Bad - nested access
+    "output": "result"
+    // Access: ${result.parsed.user.id}
+
+    // Good - direct access
+    "output": { "parsed": "user" }
+    // Access: ${user.id}
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Parse Errors Gracefully">
+    Check if parsing succeeded before making assertions:
+
+    ```json
+    {
+      "assertions": {
+        "data.id": { "gt": 0 }
+      }
+    }
+    ```
+
+    If `parsed` doesn't exist (parse failed), assertion will fail with clear message.
+  </Accordion>
+
+  <Accordion title="Parse Before Validation">
+    Always parse JSON before using validation blocks:
+
+    ```json
+    {
+      "pipeline": [
+        { "block": "HttpRequest", "output": "response" },
+        {
+          "block": "JsonParser",
+          "input": "${response.body}",
+          "output": { "parsed": "data" }
+        },
+        {
+          "block": "ValidateContent",
+          "input": { "from": "data.message", "as": "text" }
+        }
+      ]
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## When to Use
+
+**Use JsonParser when:**
+- Parsing HTTP response bodies
+- Converting JSON strings to objects
+- Accessing nested JSON properties
+
+**Don't use when:**
+- Response is already an object (not common in SemanticTest)
+- Parsing streaming responses (use StreamParser)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="HttpRequest"
+    icon="globe"
+    href="/blocks/http-request"
+  >
+    Make HTTP requests
+  </Card>
+  <Card
+    title="ValidateContent"
+    icon="check"
+    href="/blocks/validate-content"
+  >
+    Validate parsed data
+  </Card>
+</CardGroup>

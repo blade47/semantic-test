@@ -1,0 +1,115 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "SemanticTest",
+  "logo": {
+    "dark": "/logo-dark.png",
+    "light": "/logo-light.png"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#137DC5",
+    "light": "#2199ea",
+    "dark": "#0f5f96",
+    "anchors": {
+      "from": "#137DC5",
+      "to": "#2199ea"
+    }
+  },
+  "theme": "venus",
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/blade47/semantic-test"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Try Playground",
+    "url": "https://semantic-test.vercel.app"
+  },
+  "tabs": [
+    {
+      "name": "Examples",
+      "url": "examples"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "npm Package",
+      "icon": "npm",
+      "url": "https://www.npmjs.com/package/@blade47/semantic-test"
+    },
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/blade47/semantic-test"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "installation"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "concepts/pipelines",
+        "concepts/data-flow",
+        "concepts/input-formats",
+        "concepts/output-formats",
+        "concepts/assertions"
+      ]
+    },
+    {
+      "group": "Blocks",
+      "pages": [
+        "blocks/overview",
+        "blocks/http-request",
+        "blocks/json-parser",
+        "blocks/stream-parser",
+        "blocks/validate-content",
+        "blocks/validate-tools",
+        "blocks/llm-judge",
+        "blocks/loop",
+        "blocks/mock-data"
+      ]
+    },
+    {
+      "group": "Testing AI Systems",
+      "pages": [
+        "ai-testing/overview",
+        "ai-testing/semantic-validation",
+        "ai-testing/tool-calls",
+        "ai-testing/streaming-responses",
+        "ai-testing/multi-turn-conversations"
+      ]
+    },
+    {
+      "group": "Advanced",
+      "pages": [
+        "advanced/custom-blocks",
+        "advanced/test-suites",
+        "advanced/environment-variables",
+        "advanced/programmatic-usage",
+        "advanced/debugging"
+      ]
+    },
+    {
+      "group": "Examples",
+      "pages": [
+        "examples/basic-api-test",
+        "examples/ai-chat-test",
+        "examples/calendar-agent",
+        "examples/error-handling"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "twitter": "https://x.com/alessandro_afl",
+    "github": "https://github.com/blade47/semantic-test",
+    "linkedin": "https://www.linkedin.com/in/alessandro-afloarei"
+  }
+}
