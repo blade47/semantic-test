@@ -45,7 +45,6 @@ blocks/custom/**
 !blocks/custom/.gitkeep
 !blocks/custom/README.md
 !blocks/custom/examples/
-test-examples/**
 !test-examples/.gitkeep
 !test-examples/README.md
 

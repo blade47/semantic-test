@@ -374,10 +374,10 @@ LOG_LEVEL=DEBUG npx semtest test.json
 
 ## Next Steps
 
-- Read the full [README](README.md) for all features
+- Full documentation: https://docs.semantictest.dev
+- Read the [README](README.md) for all features
 - Check [CONTRIBUTING.md](CONTRIBUTING.md) for block development
-- See `examples/` for more complex scenarios
-- Join discussions on GitHub
+- See `test-examples/` for more complex scenarios
 
 ## Common Patterns
 
@@ -504,6 +504,6 @@ LOG_LEVEL=DEBUG npx semtest test.json
 
 ## Need Help?
 
+- Documentation: https://docs.semantictest.dev
 - GitHub Issues: https://github.com/blade47/semantic-test/issues
 - Examples: See `test-examples/` directory
-- Full docs: [README.md](README.md)

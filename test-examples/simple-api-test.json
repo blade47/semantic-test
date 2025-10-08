@@ -1,0 +1,57 @@
+{
+  "name": "Simple API Test - JSONPlaceholder Suite",
+  "version": "1.0.0",
+  "description": "Test a simple REST API endpoint",
+  "context": {
+    "BASE_URL": "https://jsonplaceholder.typicode.com"
+  },
+  "input": {
+    "userId": 1
+  },
+  "setup": [],
+  "teardown": [],
+  "tests": [
+    {
+      "id": "simple-api-test",
+      "name": "JSONPlaceholder User Fetch",
+      "pipeline": [
+        {
+          "id": "request",
+          "block": "HttpRequest",
+          "input": {
+            "url": "${BASE_URL}/users/${input.userId}",
+            "method": "GET"
+          },
+          "output": "response"
+        },
+        {
+          "id": "parse",
+          "block": "JsonParser",
+          "input": {
+            "from": "response.body",
+            "as": "body"
+          },
+          "output": "user"
+        },
+        {
+          "id": "validate",
+          "block": "ValidateContent",
+          "input": {
+            "from": "user.parsed.name",
+            "as": "text"
+          },
+          "config": {
+            "contains": "Leanne Graham"
+          },
+          "output": "validation"
+        }
+      ],
+      "assertions": {
+        "response.status": 200,
+        "user.parsed.id": 1,
+        "user.parsed.email": "Sincere@april.biz",
+        "validation.passed": true
+      }
+    }
+  ]
+}

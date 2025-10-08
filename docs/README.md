@@ -2,6 +2,8 @@
 
 This directory contains the Mintlify documentation for SemanticTest.
 
+**Live Documentation**: [https://docs.semantictest.dev](https://docs.semantictest.dev)
+
 ## 🚀 Quick Start
 
 ### Install Mintlify CLI
@@ -62,161 +64,50 @@ icon: 'icon-name'  # optional
 Content here...
 ```
 
-### Common Components
+## 📝 Documentation Status
 
-```mdx
-# Cards
-<Card title="Title" icon="icon-name" href="/path">
-  Description
-</Card>
+### ✅ Completed Sections
 
-# Card Groups
-<CardGroup cols={2}>
-  <Card>...</Card>
-  <Card>...</Card>
-</CardGroup>
+#### Examples
+- [x] basic-api-test.mdx
+- [x] ai-chat-test.mdx
+- [x] calendar-agent.mdx
+- [x] error-handling.mdx
 
-# Code Blocks
-```json
-{
-  "example": "code"
-}
-```
+#### AI Testing
+- [x] overview.mdx
+- [x] semantic-validation.mdx
+- [x] tool-calls.mdx
+- [x] streaming-responses.mdx
+- [x] multi-turn-conversations.mdx
 
-# Tabs
-<Tabs>
-  <Tab title="Tab 1">
-    Content
-  </Tab>
-</Tabs>
+#### Blocks
+- [x] overview.mdx
+- [x] llm-judge.mdx
+- [x] validate-content.mdx
+- [x] validate-tools.mdx
+- [x] http-request.mdx
+- [x] json-parser.mdx
+- [x] stream-parser.mdx
+- [x] loop.mdx
 
-# Accordions
-<AccordionGroup>
-  <Accordion title="Title">
-    Content
-  </Accordion>
-</AccordionGroup>
+#### Concepts
+- [x] pipelines.mdx
+- [x] data-flow.mdx
+- [x] input-formats.mdx
+- [x] output-formats.mdx
+- [x] assertions.mdx
 
-# Notes and Tips
-<Note>Important note</Note>
-<Tip>Helpful tip</Tip>
-<Warning>Warning message</Warning>
+### 📋 Pages To Create
 
-# Steps
-<Steps>
-  <Step title="Step 1">
-    Instructions
-  </Step>
-</Steps>
-```
-
-## 🚢 Deployment
-
-### Option 1: Mintlify Hosting (Recommended)
-
-1. Push your docs to GitHub
-2. Sign up at [mintlify.com](https://mintlify.com)
-3. Connect your repository
-4. Select the `docs` folder
-5. Deploy!
-
-Your docs will be live at: `https://your-project.mintlify.app`
-
-### Option 2: Custom Domain
-
-In Mintlify dashboard:
-1. Go to Settings → Custom Domain
-2. Add your domain (e.g., `docs.semantic-test.com`)
-3. Update DNS records as instructed
-4. Wait for SSL certificate
-
-### Option 3: Self-Host
-
-Build static files:
-
-```bash
-mintlify build
-```
-
-This generates static HTML/JS/CSS that you can host anywhere.
-
-## 🎨 Customization
-
-### Update Colors
-
-Edit `mint.json`:
-
-```json
-{
-  "colors": {
-    "primary": "#2563eb",
-    "light": "#60a5fa",
-    "dark": "#1e40af"
-  }
-}
-```
-
-### Update Logo
-
-Replace logo files in `/docs/logo-dark.svg` and `/docs/logo-light.svg`
-
-### Update Navigation
-
-Edit the `navigation` array in `mint.json`:
-
-```json
-{
-  "navigation": [
-    {
-      "group": "Group Name",
-      "pages": [
-        "page1",
-        "page2"
-      ]
-    }
-  ]
-}
-```
-
-## 📝 TODO
-
-Pages that still need to be created:
-
-### Concepts
-- [ ] input-formats.mdx
-- [ ] output-formats.mdx
-- [ ] assertions.mdx
-
-### Blocks
-- [ ] http-request.mdx
-- [ ] json-parser.mdx
-- [ ] stream-parser.mdx
-- [ ] validate-content.mdx
-- [ ] validate-tools.mdx
-- [ ] loop.mdx
-- [ ] mock-data.mdx
-
-### AI Testing
-- [ ] overview.mdx
-- [ ] semantic-validation.mdx
-- [ ] tool-calls.mdx
-- [ ] streaming-responses.mdx
-- [ ] multi-turn-conversations.mdx
-
-### Advanced
+#### Advanced
 - [ ] custom-blocks.mdx
 - [ ] test-suites.mdx
 - [ ] environment-variables.mdx
 - [ ] programmatic-usage.mdx
 - [ ] debugging.mdx
 
-### Examples
-- [ ] basic-api-test.mdx
-- [ ] ai-chat-test.mdx
-- [ ] calendar-agent.mdx
-- [ ] error-handling.mdx
-
-### API Reference
+#### API Reference
 - [ ] cli.mdx
 - [ ] pipeline-builder.mdx
 - [ ] block-registry.mdx
@@ -241,4 +132,3 @@ To contribute to the documentation:
 ## 📧 Questions?
 
 - GitHub Issues: https://github.com/blade47/semantic-test/issues
-- GitHub Discussions: https://github.com/blade47/semantic-test/discussions

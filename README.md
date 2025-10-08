@@ -621,12 +621,12 @@ if (result.success) {
 
 ## Examples
 
-See `examples/` directory:
+See `test-examples/` directory:
 
 - `simple-api-test.json` - Basic REST API testing
-- `test-llm-judge.json` - AI response evaluation
-- `test-error-reporting.json` - Error handling
-- `test-reporting.json` - Rich output formatting
+- `validation-test.json` - HTTP request, JSON parsing, and content validation
+- `mock-ai-validation.json` - MockData block with AI response validation
+- `conditions-example.json` - Advanced assertions and conditional loops
 
 ## Advanced Features
 
@@ -803,8 +803,8 @@ MIT
 
 ## Support
 
+- Documentation: https://docs.semantictest.dev
 - GitHub Issues: https://github.com/blade47/semantic-test/issues
-- Documentation: https://github.com/blade47/semantic-test/wiki
 
 ---
 

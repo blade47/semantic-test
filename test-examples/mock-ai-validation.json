@@ -1,0 +1,72 @@
+{
+  "name": "Mock AI Validation Suite",
+  "version": "1.0.0",
+  "description": "Demonstrates MockData block and validation of AI responses with text and tool calls",
+  "context": {},
+  "input": {},
+  "setup": [],
+  "teardown": [],
+  "tests": [
+    {
+      "id": "mock-ai-validation",
+      "name": "Mock AI Validation",
+      "pipeline": [
+        {
+          "id": "mock-ai-response-parsed",
+          "block": "MockData",
+          "config": {
+            "data": {
+              "text": "I'll help you with that task.",
+              "toolCalls": [
+                {
+                  "name": "some_tool",
+                  "args": {
+                    "param": "value"
+                  }
+                }
+              ],
+              "toolErrors": [
+                {
+                  "toolName": "check_conflicts",
+                  "error": "Authentication failed: Invalid token",
+                  "toolCallId": "call_123"
+                }
+              ]
+            }
+          },
+          "output": "mockResponseParsed"
+        },
+        {
+          "id": "validate-text",
+          "block": "ValidateContent",
+          "input": {
+            "from": "mockResponseParsed.text",
+            "as": "text"
+          },
+          "config": {
+            "contains": "help",
+            "minLength": 10
+          },
+          "output": "textValidation"
+        },
+        {
+          "id": "validate-tools",
+          "block": "ValidateTools",
+          "input": {
+            "from": "mockResponseParsed.toolCalls",
+            "as": "toolCalls"
+          },
+          "config": {
+            "expected": ["some_tool"],
+            "minTools": 1
+          },
+          "output": "toolValidation"
+        }
+      ],
+      "assertions": {
+        "textValidation.passed": true,
+        "toolValidation.passed": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "name": "Validation Test Suite",
+  "version": "1.0.0",
+  "description": "Demonstrates HTTP request, JSON parsing, and content validation",
+  "context": {},
+  "input": {},
+  "setup": [],
+  "teardown": [],
+  "tests": [
+    {
+      "id": "validation-test",
+      "name": "Validation Test",
+      "pipeline": [
+        {
+          "id": "fetch-data",
+          "block": "HttpRequest",
+          "input": {
+            "url": "https://jsonplaceholder.typicode.com/users/1",
+            "method": "GET"
+          },
+          "output": "response"
+        },
+        {
+          "id": "parse-json",
+          "block": "JsonParser",
+          "input": {
+            "from": "response.body",
+            "as": "body"
+          },
+          "output": "parsed"
+        },
+        {
+          "id": "validate-name",
+          "block": "ValidateContent",
+          "input": {
+            "from": "parsed.parsed.name",
+            "as": "text"
+          },
+          "config": {
+            "contains": "Leanne",
+            "minLength": 5
+          },
+          "output": "nameValidation"
+        }
+      ],
+      "assertions": {
+        "response.status": 200,
+        "nameValidation.passed": true,
+        "parsed.parsed.id": 1
+      }
+    }
+  ]
+}

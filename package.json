@@ -1,6 +1,6 @@
 {
   "name": "@blade47/semantic-test",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A composable, pipeline-based testing framework for AI systems and APIs with semantic validation",
   "main": "src/index.js",
   "type": "module",
@@ -72,7 +72,7 @@
   "bugs": {
     "url": "https://github.com/blade47/semantic-test/issues"
   },
-  "homepage": "https://github.com/blade47/semantic-test#readme",
+  "homepage": "https://semantictest.dev",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"

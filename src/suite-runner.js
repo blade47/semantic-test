@@ -354,8 +354,8 @@ async function main() {
   const runner = new SuiteRunner(options);
 
   if (testFiles.length === 0) {
-    // Run all suites in examples directory
-    const examplesDir = path.join(__dirname, '..', 'examples');
+    // Run all suites in test-examples directory
+    const examplesDir = path.join(__dirname, '..', 'test-examples');
     const files = await fs.readdir(examplesDir);
     const suiteFiles = files.filter(f => f.endsWith('.json'));
 

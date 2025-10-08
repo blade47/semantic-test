@@ -39,8 +39,8 @@ This example demonstrates end-to-end testing of an AI calendar agent that can:
                   {
                     "name": "check_user_conflicts",
                     "args": {
-                      "userId": "user123",
-                      "date": "2024-01-20",
+                      "userId": "${USER_ID}",
+                      "date": "${TEST_DATE}",
                       "startTime": "14:00",
                       "endTime": "15:00"
                     }
@@ -48,10 +48,10 @@ This example demonstrates end-to-end testing of an AI calendar agent that can:
                   {
                     "name": "create_event",
                     "args": {
-                      "userId": "user123",
+                      "userId": "${USER_ID}",
                       "summary": "Team Meeting",
-                      "start": "2024-01-20T14:00:00",
-                      "end": "2024-01-20T15:00:00",
+                      "start": "${TEST_DATE}T14:00:00",
+                      "end": "${TEST_DATE}T15:00:00",
                       "attendees": ["john@example.com"],
                       "location": "Conference Room A"
                     }
@@ -126,8 +126,8 @@ This example demonstrates end-to-end testing of an AI calendar agent that can:
                   {
                     "name": "check_user_conflicts",
                     "args": {
-                      "userId": "user123",
-                      "date": "2024-01-20",
+                      "userId": "${USER_ID}",
+                      "date": "${TEST_DATE}",
                       "startTime": "14:00",
                       "endTime": "15:00"
                     }
@@ -186,7 +186,7 @@ This example demonstrates end-to-end testing of an AI calendar agent that can:
                   {
                     "name": "check_user_conflicts",
                     "args": {
-                      "userId": "user123",
+                      "userId": "${USER_ID}",
                       "date": "2024-01-21",
                       "startTime": "10:00",
                       "endTime": "11:00"
@@ -195,7 +195,7 @@ This example demonstrates end-to-end testing of an AI calendar agent that can:
                   {
                     "name": "create_event",
                     "args": {
-                      "userId": "user123",
+                      "userId": "${USER_ID}",
                       "summary": "Project Planning",
                       "start": "2024-01-21T10:00:00",
                       "end": "2024-01-21T11:00:00",
@@ -222,7 +222,7 @@ This example demonstrates end-to-end testing of an AI calendar agent that can:
           "config": {
             "validateArgs": {
               "create_event": {
-                "userId": "user123"
+                "userId": "${USER_ID}"
               }
             }
           },
